@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "MoreSugarRegular";
+  src: url("/fonts/more-sugar-regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TTChocolatesDemiBold";
+  src: url("/fonts/ttchocolates-demibold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #fffdf8;
+  --foreground: #6b3f22;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  margin: 0;
+  font-family: "TTChocolatesDemiBold", sans-serif;
+}
+
+.humus-font-brand {
+  font-family: "MoreSugarRegular", cursive !important;
+}
+
+.humus-font-text {
+  font-family: "TTChocolatesDemiBold", sans-serif !important;
+}
