@@ -260,7 +260,7 @@ export default function AsistentePage() {
             </aside>
 
             {/* Chat principal */}
-            <section className="rounded-4xl bg-white border-4 border-[#7a4828] shadow-xl overflow-hidden min-h-[650px] flex flex-col">
+            <section className="rounded-4xl bg-white border-4 border-[#7a4828] shadow-xl overflow-hidden min-h-162.5 flex flex-col">
               <div className="bg-[#efe5dc] px-6 py-4 border-b-4 border-[#7a4828] flex items-center gap-4">
                 <img
                   src="/icons/humi.png"

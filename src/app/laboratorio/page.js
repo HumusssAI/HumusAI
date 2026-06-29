@@ -342,28 +342,8 @@ export default function LaboratorioPage() {
           style={{ backgroundImage: "url('/background/fondolab.png')" }}
         />
 
-        <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
-          {/* Barra lateral */}
-          <aside className="rounded-4xl bg-[#dbe7d5]/95 border-4 border-[#8eb58d] shadow-lg p-4 h-fit lg:sticky lg:top-36">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="humus-font-brand text-3xl text-[#6b3f22]">
-                Laboratorio
-              </h2>
-
-              <div className="h-12 w-12 rounded-full border-4 border-[#5f9b5f] bg-white flex items-center justify-center text-[#5f9b5f] text-2xl">
-                ☰
-              </div>
-            </div>
-
-            <nav className="flex flex-col gap-3">
-              <LabNavButton href="/laboratorio" label="Laboratorio" active />
-              <LabNavButton href="/laboratorio/calendario" label="Calendario" />
-              <LabNavButton href="/laboratorio/parametros" label="Parámetros" />
-              <LabNavButton href="/laboratorio/graficos" label="Gráficos" />
-              <LabNavButton href="/laboratorio/planificacion" label="Planificación" />
-            </nav>
-          </aside>
-
+        <div className="relative max-w-7xl mx-auto">
+         
           {/* Contenido principal */}
           <section className="rounded-4xl bg-[#e8f0e7]/95 border-4 border-[#ceddc8] shadow-lg p-4 md:p-6">
             {/* Botones superiores */}
@@ -709,21 +689,6 @@ export default function LaboratorioPage() {
   />
 )}
     </main>
-  );
-}
-
-function LabNavButton({ href, label, active = false }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-3xl px-4 py-4 text-center humus-font-brand text-2xl shadow-md transition hover:scale-105 ${
-        active
-          ? "bg-[#5f9b5f] text-white"
-          : "bg-white text-[#6b3f22]"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
 
