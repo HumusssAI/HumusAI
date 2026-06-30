@@ -106,12 +106,66 @@ function formatDate(dateTime) {
   });
 }
 
+function getPostImages(post) {
+  const normalizedImages = [];
+
+  if (Array.isArray(post.images)) {
+    post.images.forEach((imageItem, index) => {
+      if (typeof imageItem === "string") {
+        normalizedImages.push({
+          id: `${post.id}-image-${index}`,
+          src: imageItem,
+          name: `Imagen ${index + 1}`,
+        });
+
+        return;
+      }
+
+      const imageSrc =
+        imageItem?.src ||
+        imageItem?.image ||
+        imageItem?.url ||
+        imageItem?.dataUrl ||
+        "";
+
+      if (imageSrc) {
+        normalizedImages.push({
+          id: imageItem.id || `${post.id}-image-${index}`,
+          src: imageSrc,
+          name:
+            imageItem.name ||
+            imageItem.imageName ||
+            imageItem.filename ||
+            `Imagen ${index + 1}`,
+        });
+      }
+    });
+  }
+
+  if (normalizedImages.length > 0) {
+    return normalizedImages;
+  }
+
+  if (post.image) {
+    return [
+      {
+        id: `${post.id}-legacy-image`,
+        src: post.image,
+        name: post.imageName || "Imagen de la charla",
+      },
+    ];
+  }
+
+  return [];
+}
+
 export default function ComunidadPage() {
   const [posts, setPosts] = useState(INITIAL_POSTS);
   const [searchText, setSearchText] = useState("");
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [commentText, setCommentText] = useState("");
   const [menuOpenPostId, setMenuOpenPostId] = useState(null);
+  const [imageViewer, setImageViewer] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -144,6 +198,13 @@ export default function ComunidadPage() {
 
   const selectedPost =
     posts.find((post) => post.id === selectedPostId) || null;
+
+  function openImageViewer(image, imageName) {
+    setImageViewer({
+      image,
+      imageName: imageName || "Imagen de la charla",
+    });
+  }    
 
   function openPost(postId) {
     setSelectedPostId(postId);
@@ -317,7 +378,9 @@ export default function ComunidadPage() {
                 href="/comunidad/nueva"
                 className="rounded-[1.8rem] bg-[#6a6a6a] px-4 py-5 text-center humus-font-text text-2xl text-white shadow-lg hover:scale-105 transition"
               >
-                Nueva charla
+                Mis charlas
+                <br />
+                / nueva
               </Link>
 
               <Link
@@ -368,13 +431,25 @@ export default function ComunidadPage() {
                             {post.content}
                           </p>
 
-                          {post.image && (
-                            <img
-                              src={post.image}
-                              alt={post.imageName || post.title}
-                              className="mt-4 max-h-80 w-full rounded-3xl object-cover"
-                            />
-                          )}
+                         {getPostImages(post).length > 0 && (
+  <div className="mt-4 flex flex-wrap gap-3">
+    {getPostImages(post).map((imageItem) => (
+      <button
+        key={imageItem.id}
+        type="button"
+        onClick={() => openImageViewer(imageItem.src, imageItem.name)}
+        className="block h-48 w-48 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
+        title="Ver imagen"
+      >
+        <img
+          src={imageItem.src}
+          alt={imageItem.name || post.title}
+          className="h-full w-full object-cover"
+        />
+      </button>
+    ))}
+  </div>
+)}
 
                           <p className="mt-2 text-sm text-[#cfcfcf]">
                             {formatDate(post.createdAt)}
@@ -491,13 +566,25 @@ export default function ComunidadPage() {
               {selectedPost.content}
             </p>
 
-            {selectedPost.image && (
-              <img
-                src={selectedPost.image}
-                alt={selectedPost.imageName || selectedPost.title}
-                className="mt-4 max-h-80 w-full rounded-3xl object-cover"
-              />
-            )}
+          {getPostImages(selectedPost).length > 0 && (
+  <div className="mt-4 flex flex-wrap gap-3">
+    {getPostImages(selectedPost).map((imageItem) => (
+      <button
+        key={imageItem.id}
+        type="button"
+        onClick={() => openImageViewer(imageItem.src, imageItem.name)}
+        className="block h-52 w-52 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
+        title="Ver imagen"
+      >
+        <img
+          src={imageItem.src}
+          alt={imageItem.name || selectedPost.title}
+          className="h-full w-full object-cover"
+        />
+      </button>
+    ))}
+  </div>
+)}
 
             <p className="mt-2 text-sm text-[#7a6351]">
               {formatDate(selectedPost.createdAt)}
@@ -549,6 +636,31 @@ export default function ComunidadPage() {
           </div>
         </Modal>
       )}
+    {imageViewer && (
+  <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/90 px-4 py-6">
+    <button
+      type="button"
+      onClick={() => setImageViewer(null)}
+      className="absolute inset-0"
+      aria-label="Cerrar visualizador"
+    />
+
+    <button
+      type="button"
+      onClick={() => setImageViewer(null)}
+      className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-3xl font-bold text-black shadow-lg hover:scale-105 transition"
+      aria-label="Cerrar imagen"
+    >
+      ✕
+    </button>
+
+    <img
+      src={imageViewer.image}
+      alt={imageViewer.imageName}
+      className="relative z-10 max-h-[88vh] max-w-[92vw] rounded-3xl object-contain shadow-2xl"
+    />
+  </div>
+)}
     </main>
   );
 }

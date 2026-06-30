@@ -185,24 +185,24 @@ export default function HumiQuickChat() {
       )}
 
       <button
-        type="button"
-        onClick={() => setChatOpen((prevValue) => !prevValue)}
-        className="fixed bottom-6 right-6 z-100 flex items-center gap-3 rounded-full bg-white border-4 border-[#5f9b5f] px-4 py-3 shadow-2xl hover:scale-105 transition"
-        title="Preguntale a Humi"
-        aria-label="Abrir chat rápido con Humi"
-      >
-        <div className="h-16 w-16 rounded-full bg-[#edf4ea] flex items-center justify-center overflow-hidden border-2 border-[#d7e6d2]">
-          <img
-            src="/icons/humi.png"
-            alt="Humi IA"
-            className="h-14 w-14 object-contain"
-          />
-        </div>
+  type="button"
+  onClick={() => setChatOpen((prevValue) => !prevValue)}
+  className="fixed bottom-5 right-5 z-100 flex items-center gap-2 rounded-full bg-white border-2 border-[#5f9b5f] px-2 py-1.5 shadow-xl hover:scale-105 transition"
+  title="Preguntale a Humi"
+  aria-label="Abrir chat rápido con Humi"
+>
+  <div className="h-9 w-9 rounded-full bg-[#edf4ea] flex items-center justify-center overflow-hidden border border-[#d7e6d2]">
+    <img
+      src="/icons/humi.png"
+      alt="Humi IA"
+      className="h-8 w-8 object-contain"
+    />
+  </div>
 
-        <span className="hidden md:block humus-font-brand text-2xl text-[#6b3f22] whitespace-nowrap">
-          Preguntale a Humi
-        </span>
-      </button>
+  <span className="hidden md:block humus-font-brand text-lg text-[#6b3f22] whitespace-nowrap">
+    Humi chat
+  </span>
+</button>
     </>
   );
 }

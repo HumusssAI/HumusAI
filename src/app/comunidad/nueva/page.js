@@ -21,6 +21,7 @@ const INITIAL_POSTS = [
     saved: false,
     image: "",
     imageName: "",
+    images: [],
   },
 ];
 
@@ -56,6 +57,24 @@ function formatDate(dateTime) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getPostImages(post) {
+  if (Array.isArray(post.images) && post.images.length > 0) {
+    return post.images;
+  }
+
+  if (post.image) {
+    return [
+      {
+        id: `${post.id}-legacy-image`,
+        src: post.image,
+        name: post.imageName || "Imagen de la charla",
+      },
+    ];
+  }
+
+  return [];
 }
 
 function compressImageToBase64(file) {
@@ -104,8 +123,10 @@ export default function NuevaCharlaPage() {
   const [posts, setPosts] = useState([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [image, setImage] = useState("");
-  const [imageName, setImageName] = useState("");
+  const [images, setImages] = useState([]);
+  const [imageViewer, setImageViewer] = useState(null);
+  const [menuOpenPostId, setMenuOpenPostId] = useState(null);
+  const [editingPostId, setEditingPostId] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -127,7 +148,7 @@ export default function NuevaCharlaPage() {
       console.error("No se pudieron guardar las charlas:", error);
 
       alert(
-        "La imagen es demasiado pesada para guardar en esta versión local. Probá con una imagen más chica."
+        "Las imágenes son demasiado pesadas para guardar en esta versión local. Probá con menos imágenes o fotos más chicas."
       );
     }
   }, [posts, dataLoaded]);
@@ -139,70 +160,155 @@ export default function NuevaCharlaPage() {
   }, [posts]);
 
   async function handleImageChange(event) {
-    const file = event.target.files?.[0];
+    const selectedFiles = Array.from(event.target.files || []);
 
-    if (!file) return;
+    if (selectedFiles.length === 0) return;
 
     try {
-      const compressedImage = await compressImageToBase64(file);
+      const compressedImages = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const compressedImage = await compressImageToBase64(file);
 
-      setImage(compressedImage);
-      setImageName(file.name);
+          return {
+            id: `image-${Date.now()}-${file.name}-${Math.random()}`,
+            src: compressedImage,
+            name: file.name,
+          };
+        })
+      );
+
+      setImages((prevImages) => [...prevImages, ...compressedImages]);
     } catch (error) {
-      console.error("No se pudo procesar la imagen:", error);
-      alert("No se pudo cargar la imagen.");
+      console.error("No se pudieron procesar las imágenes:", error);
+      alert("No se pudieron cargar las imágenes.");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }
 
-  function clearImage() {
-    setImage("");
-    setImageName("");
+  function removeImage(imageId) {
+    setImages((prevImages) =>
+      prevImages.filter((imageItem) => imageItem.id !== imageId)
+    );
+  }
+
+  function clearImages() {
+    setImages([]);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
-  function publishPost() {
-    if (!title.trim()) {
-      alert("Ingresá un título para la charla.");
-      return;
-    }
-
-    if (!content.trim()) {
-      alert("Escribí tu pregunta o comentario.");
-      return;
-    }
-
-    const newPost = {
-      id: `post-${Date.now()}`,
-      username: CURRENT_USER,
-      title: title.trim(),
-      content: content.trim(),
-      createdAt: getCurrentDateTimeLocal(),
-      likes: 0,
-      dislikes: 0,
-      userVote: null,
-      comments: [],
-      saved: false,
+  function openImageViewer(image, imageName) {
+    setImageViewer({
       image,
-      imageName,
-    };
+      imageName: imageName || "Imagen de la charla",
+    });
+  }
+function startEditPost(post) {
+  const postImages = getPostImages(post).map((imageItem, index) => ({
+    id: imageItem.id || `edit-image-${Date.now()}-${index}`,
+    src: imageItem.src,
+    name: imageItem.name || `Imagen ${index + 1}`,
+  }));
 
-    setPosts((prevPosts) => [newPost, ...prevPosts]);
+  setEditingPostId(post.id);
+  setTitle(post.title || "");
+  setContent(post.content || "");
+  setImages(postImages);
+  setMenuOpenPostId(null);
 
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+function cancelEditPost() {
+  setEditingPostId(null);
+  setTitle("");
+  setContent("");
+  clearImages();
+}
+
+  function publishPost() {
+  if (!title.trim()) {
+    alert("Ingresá un título para la charla.");
+    return;
+  }
+
+  if (!content.trim()) {
+    alert("Escribí tu pregunta o comentario.");
+    return;
+  }
+
+  if (editingPostId) {
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === editingPostId
+          ? {
+              ...post,
+              title: title.trim(),
+              content: content.trim(),
+              images,
+              image: images[0]?.src || "",
+              imageName: images[0]?.name || "",
+              editedAt: getCurrentDateTimeLocal(),
+            }
+          : post
+      )
+    );
+
+    setEditingPostId(null);
     setTitle("");
     setContent("");
-    clearImage();
+    clearImages();
+
+    return;
   }
+
+  const newPost = {
+    id: `post-${Date.now()}`,
+    username: CURRENT_USER,
+    title: title.trim(),
+    content: content.trim(),
+    createdAt: getCurrentDateTimeLocal(),
+    likes: 0,
+    dislikes: 0,
+    userVote: null,
+    comments: [],
+    saved: false,
+    images,
+    image: images[0]?.src || "",
+    imageName: images[0]?.name || "",
+  };
+
+  setPosts((prevPosts) => [newPost, ...prevPosts]);
+
+  setTitle("");
+  setContent("");
+  clearImages();
+}
 
   function deleteMyPost(postId) {
-    const confirmed = confirm("¿Querés eliminar esta charla?");
+  const confirmed = confirm("¿Querés eliminar esta charla?");
 
-    if (!confirmed) return;
+  if (!confirmed) return;
 
-    setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+  setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+
+  if (editingPostId === postId) {
+    setEditingPostId(null);
+    setTitle("");
+    setContent("");
+    clearImages();
   }
+
+  setMenuOpenPostId(null);
+}
 
   return (
     <main className="min-h-screen bg-[#2a2a2a] text-white relative overflow-hidden humus-font-text">
@@ -212,7 +318,6 @@ export default function NuevaCharlaPage() {
       />
 
       <div className="relative z-10">
-        {/* Header */}
         <header className="bg-[#5b9b55] px-5 py-3 shadow-md">
           <div className="flex items-start justify-between gap-4">
             <div className="pt-4">
@@ -242,7 +347,6 @@ export default function NuevaCharlaPage() {
 
         <section className="px-4 py-4 md:px-7 md:py-4">
           <div className="mx-auto grid max-w-6xl grid-cols-[76px_1fr] gap-4">
-            {/* Flecha volver */}
             <div className="pt-4">
               <Link
                 href="/comunidad"
@@ -254,7 +358,6 @@ export default function NuevaCharlaPage() {
             </div>
 
             <div className="max-w-4xl">
-              {/* Burbuja nueva charla */}
               <section className="rounded-[1.8rem] bg-[#303033] px-5 py-4 text-white shadow-xl">
                 <p className="text-xl font-bold">{CURRENT_USER}</p>
 
@@ -274,26 +377,39 @@ export default function NuevaCharlaPage() {
                   className="mt-7 w-full resize-none bg-transparent text-2xl text-white outline-none placeholder:text-white"
                 />
 
-                {image && (
+                {images.length > 0 && (
                   <div className="mt-4">
-                    <img
-                      src={image}
-                      alt={imageName || "Imagen adjunta"}
-                      className="max-h-72 w-full rounded-3xl object-cover"
-                    />
+                    <div className="flex flex-wrap gap-3">
+                      {images.map((imageItem) => (
+                        <div
+                          key={imageItem.id}
+                          className="relative h-36 w-36 overflow-hidden rounded-3xl bg-black/30 shadow-lg"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openImageViewer(imageItem.src, imageItem.name)
+                            }
+                            className="block h-full w-full"
+                            title="Ver imagen"
+                          >
+                            <img
+                              src={imageItem.src}
+                              alt={imageItem.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
 
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <p className="truncate text-sm text-[#d5d5d5]">
-                        {imageName}
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={clearImage}
-                        className="rounded-full bg-[#777777] px-3 py-1 text-sm font-bold text-white hover:scale-105 transition"
-                      >
-                        Quitar
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(imageItem.id)}
+                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg font-bold text-black shadow-lg hover:scale-105 transition"
+                            title="Quitar imagen"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -304,6 +420,7 @@ export default function NuevaCharlaPage() {
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleImageChange}
                       className="hidden"
                     />
@@ -312,21 +429,21 @@ export default function NuevaCharlaPage() {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="text-white hover:scale-110 transition"
-                      title="Agregar imagen"
+                      title="Agregar imágenes"
                     >
                       <PaperClipIcon />
                     </button>
                   </div>
 
                   <div className="flex items-center gap-6">
-                    <button
-                      type="button"
-                      onClick={publishPost}
-                      className="text-white hover:scale-110 transition"
-                      title="Enviar charla"
-                    >
-                      <SendIcon />
-                    </button>
+                   <button
+  type="button"
+  onClick={publishPost}
+  className="text-white hover:scale-110 transition"
+  title={editingPostId ? "Guardar cambios" : "Publicar charla"}
+>
+  <SendIcon />
+</button>
 
                     <button
                       type="button"
@@ -342,7 +459,6 @@ export default function NuevaCharlaPage() {
                 </div>
               </section>
 
-              {/* Mis charlas */}
               <section className="mt-3">
                 <div className="rounded-2xl bg-[#f3ebe3] px-4 py-3 shadow-lg">
                   <h2 className="text-2xl font-bold text-[#3d2c23]">
@@ -352,52 +468,114 @@ export default function NuevaCharlaPage() {
 
                 <div className="mt-1 space-y-3">
                   {myPosts.length > 0 ? (
-                    myPosts.map((post) => (
-                      <article
-                        key={post.id}
-                        className="rounded-3x1 bg-[#303033] px-5 py-4 text-white shadow-xl"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="text-xl font-bold">
-                              {post.username}
-                            </p>
+                    myPosts.map((post) => {
+                      const postImages = getPostImages(post);
 
-                            <h3 className="mt-6 text-2xl font-bold">
-                              {post.title}
-                            </h3>
+                      return (
+                        <article
+                          key={post.id}
+                          className="rounded-3x1 bg-[#303033] px-5 py-4 text-white shadow-xl"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <p className="text-xl font-bold">
+                                {post.username}
+                              </p>
 
-                            <p className="mt-3 text-xl leading-relaxed text-[#f1f1f1]">
-                              {post.content}
-                            </p>
+                              <h3 className="mt-6 text-2xl font-bold">
+                                {post.title}
+                              </h3>
 
-                            {post.image && (
-                              <img
-                                src={post.image}
-                                alt={post.imageName || post.title}
-                                className="mt-4 max-h-64 w-full rounded-3xl object-cover"
-                              />
-                            )}
+                              <p className="mt-3 text-xl leading-relaxed text-[#f1f1f1]">
+                                {post.content}
+                              </p>
 
-                            <p className="mt-3 text-sm text-[#cfcfcf]">
-                              {formatDate(post.createdAt)}
-                            </p>
+                              {postImages.length > 0 && (
+                                <div className="mt-4 flex flex-wrap gap-3">
+                                  {postImages.map((imageItem) => (
+                                    <button
+                                      key={imageItem.id}
+                                      type="button"
+                                      onClick={() =>
+                                        openImageViewer(
+                                          imageItem.src,
+                                          imageItem.name
+                                        )
+                                      }
+                                      className="block h-40 w-40 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
+                                      title="Ver imagen"
+                                    >
+                                      <img
+                                        src={imageItem.src}
+                                        alt={imageItem.name || post.title}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              <p className="mt-3 text-sm text-[#cfcfcf]">
+                                {formatDate(post.createdAt)}
+                              </p>
+                            </div>
+
+                           <div className="relative">
+  <button
+    type="button"
+    onClick={() =>
+      setMenuOpenPostId((prevValue) =>
+        prevValue === post.id ? null : post.id
+      )
+    }
+    className="rounded-full bg-[#777777] px-4 py-2 text-2xl font-bold text-white shadow-md hover:scale-105 transition"
+    title="Opciones"
+  >
+    ...
+  </button>
+
+  {menuOpenPostId === post.id && (
+    <div className="absolute right-0 top-12 z-30 w-40 rounded-2xl bg-white p-2 text-[#6b3f22] shadow-xl">
+      <button
+        type="button"
+        onClick={() => startEditPost(post)}
+        className="block w-full rounded-xl px-3 py-2 text-left font-bold hover:bg-[#f2ebe3]"
+      >
+        Editar
+      </button>
+
+      <button
+        type="button"
+        onClick={() => deleteMyPost(post.id)}
+        className="block w-full rounded-xl px-3 py-2 text-left font-bold text-red-600 hover:bg-[#f2ebe3]"
+      >
+        Eliminar
+      </button>
+    </div>
+  )}
+</div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteMyPost(post.id)}
-                            className="rounded-full bg-[#777777] px-3 py-2 text-sm font-bold text-white shadow-md hover:scale-105 transition"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      </article>
-                    ))
+                        </article>
+                      );
+                    })
                   ) : (
                     <article className="rounded-3x1 bg-[#303033] px-5 py-5 text-white shadow-xl">
                       <p className="text-xl font-bold">{CURRENT_USER}</p>
+{editingPostId && (
+  <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-4 py-2">
+    <p className="text-sm font-bold text-white">
+      Estás editando una charla.
+    </p>
 
+    <button
+      type="button"
+      onClick={cancelEditPost}
+      className="rounded-full bg-[#777777] px-3 py-1 text-sm font-bold text-white hover:scale-105 transition"
+    >
+      Cancelar
+    </button>
+  </div>
+)}
                       <p className="mt-6 text-2xl font-bold">
                         Aún no tienes charlas para mostrar.
                       </p>
@@ -409,6 +587,32 @@ export default function NuevaCharlaPage() {
           </div>
         </section>
       </div>
+
+      {imageViewer && (
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/90 px-4 py-6">
+          <button
+            type="button"
+            onClick={() => setImageViewer(null)}
+            className="absolute inset-0"
+            aria-label="Cerrar visualizador"
+          />
+
+          <button
+            type="button"
+            onClick={() => setImageViewer(null)}
+            className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-3xl font-bold text-black shadow-lg hover:scale-105 transition"
+            aria-label="Cerrar imagen"
+          >
+            ✕
+          </button>
+
+          <img
+            src={imageViewer.image}
+            alt={imageViewer.imageName}
+            className="relative z-10 max-h-[88vh] max-w-[92vw] rounded-3xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </main>
   );
 }
