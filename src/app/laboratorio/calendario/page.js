@@ -71,6 +71,21 @@ const CUSTOM_COLORS = [
   "#64748b",
 ];
 
+const REPEAT_OPTIONS = [
+  {
+    key: "none",
+    label: "No repetir",
+  },
+  {
+    key: "weekly",
+    label: "Semanalmente",
+  },
+  {
+    key: "every-days",
+    label: "Cada X días",
+  },
+];
+
 function safeParseJSON(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -107,6 +122,27 @@ function getDateKey(dateString) {
 
 function getTodayKey() {
   return getDateKey(getCurrentDateTimeLocal());
+}
+
+function getDateKeyFromDate(date) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(
+    date.getDate()
+  )}`;
+}
+
+function parseLocalDate(dateKey) {
+  if (!dateKey) return new Date();
+
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const newDate = new Date(date);
+  newDate.setDate(newDate.getDate() + days);
+
+  return newDate;
 }
 
 function formatMonthTitle(date) {
@@ -329,6 +365,9 @@ function getEmptyTask(selectedDateKey = getTodayKey()) {
     time: "16:00",
     observation: "",
     done: false,
+    repeatMode: "none",
+    repeatIntervalDays: "7",
+    repeatUntil: "",
   };
 }
 
@@ -354,6 +393,63 @@ function buildLabEventFromTask(taskItem, categories) {
   };
 }
 
+function buildTaskFromForm(taskForm, customData = {}) {
+  return {
+    id: customData.id || `task-${Date.now()}`,
+    title: taskForm.title.trim(),
+    categoryKey: taskForm.categoryKey,
+    date: customData.date || taskForm.date,
+    time: taskForm.time,
+    observation: taskForm.observation.trim(),
+    done: false,
+    repeatMode: taskForm.repeatMode || "none",
+    repeatIntervalDays: taskForm.repeatIntervalDays || "",
+    repeatUntil: taskForm.repeatUntil || "",
+    repeatGroupId: customData.repeatGroupId || "",
+  };
+}
+
+function buildRepeatedTasksFromForm(taskForm) {
+  const repeatMode = taskForm.repeatMode || "none";
+
+  if (repeatMode === "none") {
+    return [buildTaskFromForm(taskForm)];
+  }
+
+  const startDate = parseLocalDate(taskForm.date);
+  const endDate = taskForm.repeatUntil
+    ? parseLocalDate(taskForm.repeatUntil)
+    : addDays(startDate, 30);
+
+  const intervalDays =
+    repeatMode === "weekly"
+      ? 7
+      : Math.max(1, Number(taskForm.repeatIntervalDays) || 1);
+
+  const repeatGroupId = `repeat-${Date.now()}`;
+  const tasksToCreate = [];
+
+  let currentDate = new Date(startDate);
+  let safetyCounter = 0;
+
+  while (currentDate <= endDate && safetyCounter < 120) {
+    const dateKey = getDateKeyFromDate(currentDate);
+
+    tasksToCreate.push(
+      buildTaskFromForm(taskForm, {
+        id: `task-${Date.now()}-${safetyCounter}`,
+        date: dateKey,
+        repeatGroupId,
+      })
+    );
+
+    currentDate = addDays(currentDate, intervalDays);
+    safetyCounter += 1;
+  }
+
+  return tasksToCreate;
+}
+
 export default function CalendarioPage() {
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -363,6 +459,8 @@ export default function CalendarioPage() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingRepeatGroupId, setEditingRepeatGroupId] = useState(null);
+  const [editingSeriesFromDate, setEditingSeriesFromDate] = useState("");
   const [taskForm, setTaskForm] = useState(getEmptyTask());
   const [dataLoaded, setDataLoaded] = useState(false);
 
@@ -507,25 +605,57 @@ export default function CalendarioPage() {
   }
 
   function openNewTaskForm() {
-    setTaskForm(getEmptyTask(selectedDateKey));
-    setEditingTaskId(null);
-    setShowTaskForm(true);
-  }
+  setTaskForm(getEmptyTask(selectedDateKey));
+  setEditingTaskId(null);
+  setEditingRepeatGroupId(null);
+  setEditingSeriesFromDate("");
+  setShowTaskForm(true);
+}
 
   function openEditTaskForm(taskItem) {
-    setTaskForm({
-      id: taskItem.id,
-      title: taskItem.title,
-      categoryKey: taskItem.categoryKey,
-      date: taskItem.date,
-      time: taskItem.time || "",
-      observation: taskItem.observation || "",
-      done: taskItem.done || false,
-    });
+  setTaskForm({
+    id: taskItem.id,
+    title: taskItem.title,
+    categoryKey: taskItem.categoryKey,
+    date: taskItem.date,
+    time: taskItem.time || "",
+    observation: taskItem.observation || "",
+    done: taskItem.done || false,
+    repeatMode: taskItem.repeatMode || "none",
+    repeatIntervalDays: taskItem.repeatIntervalDays || "7",
+    repeatUntil: taskItem.repeatUntil || "",
+  });
 
-    setEditingTaskId(taskItem.id);
-    setShowTaskForm(true);
+  setEditingTaskId(taskItem.id);
+  setEditingRepeatGroupId(null);
+  setEditingSeriesFromDate("");
+  setShowTaskForm(true);
+}
+
+function openEditRepeatGroupForm(taskItem) {
+  if (!taskItem.repeatGroupId) {
+    openEditTaskForm(taskItem);
+    return;
   }
+
+  setTaskForm({
+    id: taskItem.id,
+    title: taskItem.title,
+    categoryKey: taskItem.categoryKey,
+    date: taskItem.date,
+    time: taskItem.time || "",
+    observation: taskItem.observation || "",
+    done: taskItem.done || false,
+    repeatMode: taskItem.repeatMode || "none",
+    repeatIntervalDays: taskItem.repeatIntervalDays || "7",
+    repeatUntil: taskItem.repeatUntil || "",
+  });
+
+  setEditingTaskId(null);
+  setEditingRepeatGroupId(taskItem.repeatGroupId);
+  setEditingSeriesFromDate(taskItem.date);
+  setShowTaskForm(true);
+}
 
   function handleTaskFormChange(event) {
     const { name, value } = event.target;
@@ -536,49 +666,142 @@ export default function CalendarioPage() {
     }));
   }
 
-  function handleTaskSubmit(event) {
-    event.preventDefault();
+ function handleTaskSubmit(event) {
+  event.preventDefault();
 
-    if (!taskForm.title.trim()) {
-      alert("Ingresá un título para la tarea.");
-      return;
-    }
+  if (!taskForm.title.trim()) {
+    alert("Ingresá un título para la tarea.");
+    return;
+  }
 
-    if (!taskForm.date) {
-      alert("Elegí una fecha para la tarea.");
-      return;
-    }
+  if (!taskForm.date) {
+    alert("Elegí una fecha para la tarea.");
+    return;
+  }
 
-    const newTask = {
-      id: editingTaskId || `task-${Date.now()}`,
-      title: taskForm.title.trim(),
-      categoryKey: taskForm.categoryKey,
-      date: taskForm.date,
-      time: taskForm.time,
-      observation: taskForm.observation.trim(),
-      done: taskForm.done || false,
-    };
+  if (
+    !editingTaskId &&
+    !editingRepeatGroupId &&
+    taskForm.repeatMode !== "none" &&
+    taskForm.repeatUntil &&
+    taskForm.repeatUntil < taskForm.date
+  ) {
+    alert("La fecha final de repetición no puede ser anterior a la fecha inicial.");
+    return;
+  }
 
-    if (editingTaskId) {
-      setTasks((prevTasks) =>
-        prevTasks.map((taskItem) =>
-          taskItem.id === editingTaskId ? newTask : taskItem
-        )
-      );
-    } else {
-      setTasks((prevTasks) => [...prevTasks, newTask]);
-    }
+  if (
+    !editingTaskId &&
+    !editingRepeatGroupId &&
+    taskForm.repeatMode === "every-days" &&
+    Number(taskForm.repeatIntervalDays) < 1
+  ) {
+    alert("Ingresá un intervalo válido de días.");
+    return;
+  }
 
-    setSelectedDateKey(newTask.date);
-    setCurrentMonth(() => {
-      const [year, month] = newTask.date.split("-").map(Number);
-      return new Date(year, month - 1, 1);
-    });
+  if (editingRepeatGroupId) {
+    const updatedTitle = taskForm.title.trim();
+    const updatedCategoryKey = taskForm.categoryKey;
+    const updatedTime = taskForm.time;
+    const updatedObservation = taskForm.observation.trim();
+
+    let updatedCount = 0;
+
+    setTasks((prevTasks) =>
+      prevTasks.map((taskItem) => {
+        const shouldUpdate =
+          taskItem.repeatGroupId === editingRepeatGroupId &&
+          taskItem.date >= editingSeriesFromDate &&
+          !taskItem.convertedToEvent;
+
+        if (!shouldUpdate) return taskItem;
+
+        updatedCount += 1;
+
+        return {
+          ...taskItem,
+          title: updatedTitle,
+          categoryKey: updatedCategoryKey,
+          time: updatedTime,
+          observation: updatedObservation,
+          repeatMode: taskForm.repeatMode || taskItem.repeatMode || "none",
+          repeatIntervalDays:
+            taskForm.repeatIntervalDays || taskItem.repeatIntervalDays || "",
+          repeatUntil: taskForm.repeatUntil || taskItem.repeatUntil || "",
+        };
+      })
+    );
+
+    setSelectedDateKey(editingSeriesFromDate || taskForm.date);
 
     setShowTaskForm(false);
     setEditingTaskId(null);
-    setTaskForm(getEmptyTask(newTask.date));
+    setEditingRepeatGroupId(null);
+    setEditingSeriesFromDate("");
+    setTaskForm(getEmptyTask(taskForm.date));
+
+    alert(
+      "La serie fue actualizada desde esta fecha en adelante. Las tareas ya registradas en Laboratorio no se modificaron."
+    );
+
+    return;
   }
+
+  if (editingTaskId) {
+    const editedDate = taskForm.date;
+
+    setTasks((prevTasks) =>
+      prevTasks.map((taskItem) =>
+        taskItem.id === editingTaskId
+          ? {
+              ...taskItem,
+              title: taskForm.title.trim(),
+              categoryKey: taskForm.categoryKey,
+              date: taskForm.date,
+              time: taskForm.time,
+              observation: taskForm.observation.trim(),
+              done: taskForm.done || false,
+              repeatMode: taskForm.repeatMode || taskItem.repeatMode || "none",
+              repeatIntervalDays:
+                taskForm.repeatIntervalDays ||
+                taskItem.repeatIntervalDays ||
+                "",
+              repeatUntil: taskForm.repeatUntil || taskItem.repeatUntil || "",
+            }
+          : taskItem
+      )
+    );
+
+    setSelectedDateKey(editedDate);
+    setCurrentMonth(() => {
+      const [year, month] = editedDate.split("-").map(Number);
+      return new Date(year, month - 1, 1);
+    });
+  } else {
+    const tasksToCreate = buildRepeatedTasksFromForm(taskForm);
+
+    setTasks((prevTasks) => [...prevTasks, ...tasksToCreate]);
+
+    const firstTask = tasksToCreate[0];
+
+    setSelectedDateKey(firstTask.date);
+    setCurrentMonth(() => {
+      const [year, month] = firstTask.date.split("-").map(Number);
+      return new Date(year, month - 1, 1);
+    });
+
+    if (tasksToCreate.length > 1) {
+      alert(`Se crearon ${tasksToCreate.length} tareas repetidas.`);
+    }
+  }
+
+  setShowTaskForm(false);
+  setEditingTaskId(null);
+  setEditingRepeatGroupId(null);
+  setEditingSeriesFromDate("");
+  setTaskForm(getEmptyTask(taskForm.date));
+}
 
   function toggleTaskDone(taskId) {
     setTasks((prevTasks) =>
@@ -599,6 +822,44 @@ export default function CalendarioPage() {
       prevTasks.filter((taskItem) => taskItem.id !== taskId)
     );
   }
+
+  function deleteRepeatedTaskGroup(taskItem) {
+  if (!taskItem.repeatGroupId) {
+    deleteTask(taskItem.id);
+    return;
+  }
+
+  const repeatedTasksToDelete = tasks.filter(
+    (currentTask) =>
+      currentTask.repeatGroupId === taskItem.repeatGroupId &&
+      currentTask.date >= taskItem.date &&
+      !currentTask.convertedToEvent
+  );
+
+  if (repeatedTasksToDelete.length === 0) {
+    alert(
+      "No hay tareas de esta serie para eliminar desde esta fecha. Las tareas ya registradas en Laboratorio se conservan."
+    );
+    return;
+  }
+
+  const confirmed = confirm(
+    `¿Querés eliminar ${repeatedTasksToDelete.length} tareas de esta serie desde esta fecha en adelante? Las tareas ya registradas en Laboratorio se conservarán.`
+  );
+
+  if (!confirmed) return;
+
+  setTasks((prevTasks) =>
+    prevTasks.filter(
+      (currentTask) =>
+        !(
+          currentTask.repeatGroupId === taskItem.repeatGroupId &&
+          currentTask.date >= taskItem.date &&
+          !currentTask.convertedToEvent
+        )
+    )
+  );
+}
 
   function convertTaskToLabEvent(taskItem) {
   if (!taskItem.date) {
@@ -939,17 +1200,21 @@ export default function CalendarioPage() {
 
               {showTaskForm && (
                 <TaskForm
-                  taskForm={taskForm}
-                  categories={categories}
-                  editingTaskId={editingTaskId}
-                  onChange={handleTaskFormChange}
-                  onSubmit={handleTaskSubmit}
-                  onCancel={() => {
-                    setShowTaskForm(false);
-                    setEditingTaskId(null);
-                    setTaskForm(getEmptyTask(selectedDateKey));
-                  }}
-                />
+  taskForm={taskForm}
+  categories={categories}
+  editingTaskId={editingTaskId}
+  editingRepeatGroupId={editingRepeatGroupId}
+  editingSeriesFromDate={editingSeriesFromDate}
+  onChange={handleTaskFormChange}
+  onSubmit={handleTaskSubmit}
+  onCancel={() => {
+    setShowTaskForm(false);
+    setEditingTaskId(null);
+    setEditingRepeatGroupId(null);
+    setEditingSeriesFromDate("");
+    setTaskForm(getEmptyTask(selectedDateKey));
+  }}
+/>
               )}
 
               {!showTaskForm && (
@@ -971,15 +1236,17 @@ export default function CalendarioPage() {
 
                     <div className="flex flex-col gap-4">
                       {selectedTasks.map((taskItem) => (
-                       <CalendarTaskCard
-                          key={taskItem.id}
-                          taskItem={taskItem}
-                          categories={categories}
-                          onToggleDone={() => toggleTaskDone(taskItem.id)}
-                          onConvertToEvent={() => convertTaskToLabEvent(taskItem)}
-                          onEdit={() => openEditTaskForm(taskItem)}
-                          onDelete={() => deleteTask(taskItem.id)}
-                      />
+                      <CalendarTaskCard
+  key={taskItem.id}
+  taskItem={taskItem}
+  categories={categories}
+  onToggleDone={() => toggleTaskDone(taskItem.id)}
+  onConvertToEvent={() => convertTaskToLabEvent(taskItem)}
+  onEdit={() => openEditTaskForm(taskItem)}
+  onEditSeries={() => openEditRepeatGroupForm(taskItem)}
+  onDelete={() => deleteTask(taskItem.id)}
+  onDeleteSeries={() => deleteRepeatedTaskGroup(taskItem)}
+/>
                       ))}
                     </div>
                   </div>
@@ -1156,6 +1423,8 @@ function TaskForm({
   taskForm,
   categories,
   editingTaskId,
+  editingRepeatGroupId,
+  editingSeriesFromDate,
   onChange,
   onSubmit,
   onCancel,
@@ -1166,8 +1435,20 @@ function TaskForm({
       className="mt-5 rounded-4xl bg-white p-5 shadow-md border border-[#d8d0c7]"
     >
       <h3 className="humus-font-brand text-3xl text-[#6b3f22] mb-4">
-        {editingTaskId ? "Editar tarea" : "Nueva tarea"}
-      </h3>
+  {editingRepeatGroupId
+    ? "Editar serie"
+    : editingTaskId
+      ? "Editar tarea"
+      : "Nueva tarea"}
+</h3>
+
+{editingRepeatGroupId && (
+  <p className="mb-4 rounded-3xl bg-[#fff2cf] px-4 py-3 text-lg text-[#6b3f22]">
+    Se editarán las tareas repetidas desde{" "}
+    <strong>{capitalizeText(formatFullDate(editingSeriesFromDate))}</strong>{" "}
+    en adelante. Las tareas ya registradas en Laboratorio no se modifican.
+  </p>
+)}
 
       <FormField label="Título">
         <input
@@ -1198,12 +1479,15 @@ function TaskForm({
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Fecha">
           <input
-            type="date"
-            name="date"
-            value={taskForm.date}
-            onChange={onChange}
-            className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none"
-          />
+  type="date"
+  name="date"
+  value={taskForm.date}
+  onChange={onChange}
+  disabled={Boolean(editingRepeatGroupId)}
+  className={`w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none ${
+    editingRepeatGroupId ? "bg-[#f3eee7] cursor-not-allowed" : ""
+  }`}
+/>
         </FormField>
 
         <FormField label="Hora">
@@ -1216,6 +1500,55 @@ function TaskForm({
           />
         </FormField>
       </div>
+
+{!editingTaskId && !editingRepeatGroupId && (
+  <>
+    <FormField label="Repetición">
+      <select
+        name="repeatMode"
+        value={taskForm.repeatMode}
+        onChange={onChange}
+        className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none bg-white"
+      >
+        {REPEAT_OPTIONS.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </FormField>
+
+    {taskForm.repeatMode === "every-days" && (
+      <FormField label="Repetir cada cuántos días">
+        <input
+          type="number"
+          min="1"
+          name="repeatIntervalDays"
+          value={taskForm.repeatIntervalDays}
+          onChange={onChange}
+          className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none"
+          placeholder="Ej: 3"
+        />
+      </FormField>
+    )}
+
+    {taskForm.repeatMode !== "none" && (
+      <FormField label="Repetir hasta">
+        <input
+          type="date"
+          name="repeatUntil"
+          value={taskForm.repeatUntil}
+          onChange={onChange}
+          className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none"
+        />
+
+        <p className="mt-2 text-base text-[#57351f]">
+          Si dejás este campo vacío, se generarán tareas para los próximos 30 días.
+        </p>
+      </FormField>
+    )}
+  </>
+)}
 
       <FormField label="Observación">
         <textarea
@@ -1254,7 +1587,9 @@ function CalendarTaskCard({
   onToggleDone,
   onConvertToEvent,
   onEdit,
+  onEditSeries,
   onDelete,
+  onDeleteSeries,
 }) {
   const category = getCategory(categories, taskItem.categoryKey);
 
@@ -1279,6 +1614,12 @@ function CalendarTaskCard({
             {category.label || "Sin nombre"}
             {taskItem.time ? ` · ${taskItem.time}` : ""}
           </p>
+
+{taskItem.repeatGroupId && (
+  <span className="mt-2 inline-block rounded-full bg-[#e5ddd3] px-3 py-1 text-sm font-bold text-[#6b3f22]">
+    Tarea repetida
+  </span>
+)}
 
           {taskItem.observation && (
             <p className="mt-3 text-lg leading-relaxed text-[#57351f]">
@@ -1321,6 +1662,16 @@ function CalendarTaskCard({
     Editar
   </button>
 
+{taskItem.repeatGroupId && (
+  <button
+    type="button"
+    onClick={onEditSeries}
+    className="rounded-full bg-[#e5ddd3] px-3 py-2 text-sm font-bold text-[#6b3f22] shadow-sm hover:scale-105 transition"
+  >
+    Editar serie
+  </button>
+)}
+
   <button
     type="button"
     onClick={onDelete}
@@ -1328,6 +1679,17 @@ function CalendarTaskCard({
   >
     Eliminar
   </button>
+
+{taskItem.repeatGroupId && (
+  <button
+    type="button"
+    onClick={onDeleteSeries}
+    className="rounded-full bg-[#f8caca] px-3 py-2 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
+  >
+    Eliminar serie
+  </button>
+)}
+
 </div>
         </div>
       </div>
