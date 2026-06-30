@@ -142,16 +142,28 @@ export default function LaboratorioPage() {
   const [editingEventId, setEditingEventId] = useState(null);
   const [formData, setFormData] = useState(getEmptyForm());
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
-  useEffect(() => {
-    const savedEvents = localStorage.getItem("humusai-lab-events");
+useEffect(() => {
+  const savedEvents = localStorage.getItem("humusai-lab-events");
 
-    if (savedEvents) {
+  if (savedEvents) {
+    try {
       setEvents(JSON.parse(savedEvents));
+    } catch (error) {
+      console.error("No se pudieron cargar los eventos:", error);
+      setEvents(initialEvents);
     }
-  }, []);
+  } else {
+    setEvents(initialEvents);
+  }
+
+  setDataLoaded(true);
+}, []);
 
   useEffect(() => {
+  if (!dataLoaded) return;
+
   try {
     localStorage.setItem("humusai-lab-events", JSON.stringify(events));
   } catch (error) {
@@ -161,7 +173,7 @@ export default function LaboratorioPage() {
       "La imagen es demasiado pesada para guardarla en esta versión local. Probá con una imagen más chica o comprimida."
     );
   }
-}, [events]);
+}, [events, dataLoaded]);
 
   const sortedEvents = useMemo(() => {
     return [...events].sort(

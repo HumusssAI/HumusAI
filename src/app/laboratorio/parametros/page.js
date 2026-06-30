@@ -136,6 +136,25 @@ export default function ParametrosPage() {
   );
 }, [customParameters, dataLoaded]);
 
+useEffect(() => {
+  if (!dataLoaded) return;
+
+  localStorage.setItem(
+    "humusai-param-records",
+    JSON.stringify(parameterRecords)
+  );
+}, [parameterRecords, dataLoaded]);
+
+useEffect(() => {
+  if (!dataLoaded) return;
+
+  try {
+    localStorage.setItem("humusai-lab-events", JSON.stringify(labEvents));
+  } catch (error) {
+    console.error("No se pudieron guardar los eventos:", error);
+  }
+}, [labEvents, dataLoaded]);
+
   const allParameters = useMemo(() => {
     return [...BASE_PARAMETERS, ...customParameters];
   }, [customParameters]);
@@ -175,6 +194,84 @@ export default function ParametrosPage() {
   });
 }
 
+function editCustomParameter(parameter) {
+  const name = prompt(
+    "Nuevo nombre del parámetro.",
+    parameter.name
+  );
+
+  if (!name || !name.trim()) return;
+
+  const unit = prompt(
+    "Unidad opcional. Ej: mL, g, nivel, escala 1-5",
+    parameter.unit || ""
+  );
+
+  if (unit === null) return;
+
+  const icon = prompt(
+    "Icono opcional. Podés pegar un emoji. Ej: 👃, 🎨, 🧃, 🍌",
+    parameter.icon || "🧬"
+  );
+
+  if (icon === null) return;
+
+  setCustomParameters((prevParameters) => {
+    const updatedParameters = prevParameters.map((item) =>
+      item.slug === parameter.slug
+        ? {
+            ...item,
+            name: name.trim(),
+            unit: unit.trim(),
+            icon: icon.trim() || "🧬",
+            configured: true,
+          }
+        : item
+    );
+
+    localStorage.setItem(
+      "humusai-custom-parameters",
+      JSON.stringify(updatedParameters)
+    );
+
+    return updatedParameters;
+  });
+}
+
+function resetCustomParameter(parameter) {
+  const confirmed = confirm(
+    `¿Querés reiniciar el parámetro "${parameter.name}"? Esto eliminará su configuración y sus registros cargados desde Parámetros.`
+  );
+
+  if (!confirmed) return;
+
+  const defaultParameter = DEFAULT_CUSTOM_PARAMETERS.find(
+    (item) => item.slug === parameter.slug
+  );
+
+  if (!defaultParameter) return;
+
+  setCustomParameters((prevParameters) => {
+    const updatedParameters = prevParameters.map((item) =>
+      item.slug === parameter.slug ? { ...defaultParameter } : item
+    );
+
+    localStorage.setItem(
+      "humusai-custom-parameters",
+      JSON.stringify(updatedParameters)
+    );
+
+    return updatedParameters;
+  });
+
+  setParameterRecords((prevRecords) =>
+    prevRecords.filter((record) => record.slug !== parameter.slug)
+  );
+
+  setLabEvents((prevEvents) =>
+    prevEvents.filter((eventItem) => eventItem.parameterSlug !== parameter.slug)
+  );
+}
   return (
     <main className="min-h-screen bg-[#edf4ea] text-[#57351f] humus-font-text">
       {/* Header */}
@@ -236,6 +333,8 @@ export default function ParametrosPage() {
                   parameter={parameter}
                   latestRecord={latestRecord}
                   onConfigure={() => configureCustomParameter(parameter)}
+                  onEdit={() => editCustomParameter(parameter)}
+                  onReset={() => resetCustomParameter(parameter)}
                 />
               );
             })}
@@ -255,14 +354,21 @@ export default function ParametrosPage() {
   );
 }
 
-function ParameterCard({ parameter, latestRecord, onConfigure }) {
-  const isCustomNotConfigured =
-    parameter.slug.includes("personalizado") && !parameter.configured;
+function ParameterCard({
+  parameter,
+  latestRecord,
+  onConfigure,
+  onEdit,
+  onReset,
+}) {
+  const isCustom = parameter.slug.includes("personalizado");
+  const isCustomNotConfigured = isCustom && !parameter.configured;
 
   if (isCustomNotConfigured) {
     return (
       <div>
         <button
+          type="button"
           onClick={onConfigure}
           className="w-full rounded-2xl bg-[#54c6d0] px-5 py-5 humus-font-brand text-3xl text-white shadow-lg hover:scale-105 transition flex items-center justify-center gap-3"
         >
@@ -312,6 +418,26 @@ function ParameterCard({ parameter, latestRecord, onConfigure }) {
           </p>
         )}
       </div>
+
+      {isCustom && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-2xl bg-white px-4 py-3 humus-font-brand text-2xl text-[#6b3f22] shadow-md hover:scale-105 transition"
+          >
+            Editar
+          </button>
+
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-2xl bg-[#f3d6d6] px-4 py-3 humus-font-brand text-2xl text-[#7a2e2e] shadow-md hover:scale-105 transition"
+          >
+            Reiniciar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
