@@ -240,28 +240,30 @@ export default function GraficosPage() {
     <main className="min-h-screen bg-[#edf4ea] text-[#57351f] humus-font-text">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 h-28 bg-[#5f9b5f] shadow-md">
-        <div className="h-full flex items-center justify-between px-6 md:px-12">
-          <Link
-            href="/"
-            className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Inicio
-          </Link>
+  <div className="relative h-full flex items-center justify-center px-6 md:px-12">
+    <div className="absolute left-6 md:left-12 flex items-center gap-3">
+      <Link
+        href="/"
+        className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+      >
+        Inicio
+      </Link>
 
-          <img
-            src="/icons/logohumusai.png"
-            alt="Logo HumusAI"
-            className="h-24 w-auto object-contain"
-          />
+      <Link
+        href="/laboratorio"
+        className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+      >
+        Lab
+      </Link>
+    </div>
 
-          <Link
-            href="/laboratorio"
-            className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Lab
-          </Link>
-        </div>
-      </header>
+    <img
+      src="/icons/logohumusai.png"
+      alt="Logo HumusAI"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
+</header>
 
       <section className="pt-36 pb-10 px-4 md:px-8 relative">
         <div
@@ -270,7 +272,7 @@ export default function GraficosPage() {
         />
 
         <div className="relative max-w-7xl mx-auto">
-          <div className="mb-8">
+          <div className="mb-8 ml-4 md:ml-6">
             <h1 className="humus-font-brand text-5xl md:text-6xl text-[#6b3f22]">
               Gráficos
             </h1>

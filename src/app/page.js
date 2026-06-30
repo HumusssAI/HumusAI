@@ -156,18 +156,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Botón flotante de Humi */}
-      <button
-        onClick={() => setChatOpen(true)}
-        className="fixed right-6 bottom-6 z-40 flex items-center gap-3 rounded-full bg-white border-4 border-[#3a8d43] px-4 py-3 shadow-xl hover:scale-105 transition"
-        aria-label="Abrir chat rápido de Humi"
-      >
-        <HumiMini />
-        <span className="hidden md:block humus-font-brand text-2xl text-[#7a4828]">
-          Preguntale a Humi
-        </span>
-      </button>
-
       {/* Chat rápido */}
       {chatOpen && (
         <div
@@ -248,15 +236,5 @@ function ComposterImage({ title }) {
         {title}
       </span>
     </div>
-  );
-}
-
-function HumiMini() {
-  return (
-    <img
-      src="/icons/humi.png"
-      alt="Humi, asistente virtual de HumusAI"
-      className="h-14 w-14 object-contain"
-    />
   );
 }

@@ -50,12 +50,16 @@ export default function LabMenu() {
   return (
     <>
       <button
-        onClick={() => setMenuOpen(true)}
-        className="fixed left-5 top-36 z-80 h-16 w-16 rounded-full border-4 border-[#3a8d43] bg-white text-[#3a8d43] shadow-lg hover:scale-105 transition"
-        aria-label="Abrir menú de laboratorio"
-      >
-        <span className="text-4xl leading-none">☰</span>
-      </button>
+  onClick={() => setMenuOpen(true)}
+  className="fixed left-2 top-29 z-80 h-12 w-12 rounded-full border-4 border-[#3a8d43] bg-transparent text-[#3a8d43] shadow-lg hover:scale-105 transition flex items-center justify-center"
+  aria-label="Abrir menú de laboratorio"
+>
+  <span className="flex flex-col gap-1">
+    <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+    <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+    <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+  </span>
+</button>
 
       {menuOpen && (
         <div className="fixed inset-0 z-100">
@@ -73,10 +77,6 @@ export default function LabMenu() {
             >
               ×
             </button>
-
-            <h2 className="humus-font-brand text-4xl text-[#7a4828] mb-6">
-              Laboratorio
-            </h2>
 
             <nav className="flex flex-col gap-5">
               {labLinks.map((item) => (

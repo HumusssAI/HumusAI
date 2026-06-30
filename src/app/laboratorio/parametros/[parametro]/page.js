@@ -365,28 +365,30 @@ useEffect(() => {
     <main className="min-h-screen bg-[#edf4ea] text-[#57351f] humus-font-text">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 h-28 bg-[#5f9b5f] shadow-md">
-        <div className="h-full flex items-center justify-between px-6 md:px-12">
-          <Link
-            href="/laboratorio/parametros"
-            className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Parámetros
-          </Link>
+  <div className="relative h-full flex items-center justify-center px-6 md:px-12">
+    <div className="absolute left-6 md:left-12 flex items-center gap-3">
+      <Link
+        href="/"
+        className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+      >
+        Inicio
+      </Link>
 
-          <img
-            src="/icons/logohumusai.png"
-            alt="Logo HumusAI"
-            className="h-24 w-auto object-contain"
-          />
+      <Link
+        href="/laboratorio/graficos"
+        className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+      >
+        Gráficos
+      </Link>
+    </div>
 
-          <Link
-            href="/laboratorio/graficos"
-            className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Gráficos
-          </Link>
-        </div>
-      </header>
+    <img
+      src="/icons/logohumusai.png"
+      alt="Logo HumusAI"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
+</header>
 <section className="pt-36 pb-10 px-4 md:px-8 relative">
         <div
           className="absolute inset-0 opacity-20 pointer-events-none bg-cover bg-center"
