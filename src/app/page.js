@@ -34,13 +34,19 @@ export default function Home() {
       </header>
 
       {/* Botón menú fijo */}
-      <button
-        onClick={() => setMenuOpen(true)}
-        className="fixed left-6 top-36 z-50 h-16 w-16 rounded-full border-4 border-[#3a8d43] bg-white text-[#3a8d43] shadow-lg hover:scale-105 transition"
-        aria-label="Abrir menú"
-      >
-        <span className="text-4xl leading-none">☰</span>
-      </button>
+  {!menuOpen && (
+  <button
+    onClick={() => setMenuOpen(true)}
+    className="fixed left-2 top-30 z-80 h-11 w-11 rounded-full border-4 border-[#3a8d43] bg-transparent text-[#3a8d43] shadow-lg hover:scale-105 transition flex items-center justify-center"
+    aria-label="Abrir menú"
+  >
+    <span className="flex flex-col gap-1">
+      <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+      <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+      <span className="block h-1 w-6 rounded-full bg-[#3a8d43]" />
+    </span>
+  </button>
+)}
 
       {/* Panel lateral desplegable */}
       {menuOpen && (
@@ -53,14 +59,14 @@ export default function Home() {
 
           <aside className="relative h-full w-72 bg-[#dce8dc] border-r-8 border-[#6aa96a] shadow-2xl rounded-r-4xl p-6">
             <button
-              onClick={() => setMenuOpen(false)}
-              className="mb-8 h-14 w-14 rounded-full bg-white border-4 border-[#3a8d43] text-[#3a8d43] shadow-md text-3xl"
-              aria-label="Cerrar menú"
-            >
-              ×
-            </button>
+  onClick={() => setMenuOpen(false)}
+  className="absolute right-3 top-5 z-90 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold text-[#6b3f22] shadow-lg hover:scale-105 transition"
+  aria-label="Cerrar menú"
+>
+  ✕
+</button>
 
-            <nav className="flex flex-col gap-6">
+            <nav className="mt-30 flex flex-col gap-4">
               <MenuLink href="/" label="Inicio" />
               <MenuLink href="/asistente" label="Asistente IA" />
               <MenuLink href="/comunidad" label="Comunidad" />
