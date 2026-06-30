@@ -110,6 +110,33 @@ function createUtf16LeBlob(text) {
   });
 }
 
+const DEFAULT_EVENT_NAME_OPTIONS = [
+  "Control",
+  "Alimentación",
+  "Humedecer",
+  "Inóculo",
+  "Agregar lombrices",
+  "Revisar fondo",
+  "Foto",
+  "Parámetros",
+  "Alerta",
+  "Muerte",
+  "Aireación",
+  "Lixiviado",
+  "Cosecha de humus",
+  "Cambio de cama",
+];
+
+function getEventNameOptions(calendarCategories) {
+  const categoryLabels = Array.isArray(calendarCategories)
+    ? calendarCategories
+        .map((category) => category.label)
+        .filter(Boolean)
+    : [];
+
+  return [...new Set([...DEFAULT_EVENT_NAME_OPTIONS, ...categoryLabels])];
+}
+
 const initialEvents = [
   {
     id: "1",
@@ -143,9 +170,13 @@ export default function LaboratorioPage() {
   const [formData, setFormData] = useState(getEmptyForm());
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [calendarCategories, setCalendarCategories] = useState([]);
 
 useEffect(() => {
   const savedEvents = localStorage.getItem("humusai-lab-events");
+  const savedCalendarCategories = localStorage.getItem(
+    "humusai-calendar-categories"
+  );
 
   if (savedEvents) {
     try {
@@ -156,6 +187,15 @@ useEffect(() => {
     }
   } else {
     setEvents(initialEvents);
+  }
+
+  if (savedCalendarCategories) {
+    try {
+      setCalendarCategories(JSON.parse(savedCalendarCategories));
+    } catch (error) {
+      console.error("No se pudieron cargar las categorías:", error);
+      setCalendarCategories([]);
+    }
   }
 
   setDataLoaded(true);
@@ -184,6 +224,10 @@ useEffect(() => {
   const photoEvents = useMemo(() => {
     return sortedEvents.filter((event) => event.image);
   }, [sortedEvents]);
+
+  const eventNameOptions = useMemo(() => {
+  return getEventNameOptions(calendarCategories);
+}, [calendarCategories]);
 
   function resetForm() {
     setFormData(getEmptyForm());
@@ -404,16 +448,41 @@ useEffect(() => {
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <FormField label="Evento">
-                    <input
-                      type="text"
-                      name="eventName"
-                      value={formData.eventName}
-                      onChange={handleInputChange}
-                      className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none"
-                      placeholder="Ej: Control"
-                    />
-                  </FormField>
+              <FormField label="Evento">
+  <select
+    value={
+      eventNameOptions.includes(formData.eventName)
+        ? formData.eventName
+        : "__custom__"
+    }
+    onChange={(event) => {
+      const selectedValue = event.target.value;
+
+      setFormData((prev) => ({
+        ...prev,
+        eventName: selectedValue === "__custom__" ? "" : selectedValue,
+      }));
+    }}
+    className="mb-3 w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none bg-white"
+  >
+    {eventNameOptions.map((option) => (
+      <option key={option} value={option}>
+        {option}
+      </option>
+    ))}
+
+    <option value="__custom__">Otro / escribir manualmente</option>
+  </select>
+
+  <input
+    type="text"
+    name="eventName"
+    value={formData.eventName}
+    onChange={handleInputChange}
+    className="w-full rounded-2xl border-2 border-[#d9d1c8] px-4 py-3 text-lg outline-none"
+    placeholder="Elegí una opción o escribí otro nombre..."
+  />
+</FormField>
 
                   <FormField label="Temperatura (°C)">
                     <input
