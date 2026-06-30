@@ -332,6 +332,28 @@ function getEmptyTask(selectedDateKey = getTodayKey()) {
   };
 }
 
+function buildLabEventFromTask(taskItem, categories) {
+  const category = getCategory(categories, taskItem.categoryKey);
+  const dateTime = `${taskItem.date}T${taskItem.time || "12:00"}`;
+
+  return {
+    id: `event-from-${taskItem.id}`,
+    eventName: taskItem.title || category.label || "Tarea realizada",
+    temperature: "",
+    ph: "",
+    humidity: "",
+    observation: taskItem.observation
+      ? `${category.label}: ${taskItem.observation}`
+      : `${category.label}: tarea registrada desde Calendario.`,
+    dateTime,
+    image: "",
+    imageName: "",
+    createdFromTask: true,
+    calendarTaskId: taskItem.id,
+    calendarCategoryKey: taskItem.categoryKey,
+  };
+}
+
 export default function CalendarioPage() {
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -371,6 +393,20 @@ export default function CalendarioPage() {
 
     localStorage.setItem("humusai-calendar-tasks", JSON.stringify(tasks));
   }, [tasks, dataLoaded]);
+
+  useEffect(() => {
+  if (!dataLoaded) return;
+
+  try {
+    localStorage.setItem("humusai-lab-events", JSON.stringify(events));
+  } catch (error) {
+    console.error("No se pudieron guardar los eventos:", error);
+
+    alert(
+      "No se pudo registrar el evento en Laboratorio. Puede que haya demasiados datos guardados en esta versión local."
+    );
+  }
+}, [events, dataLoaded]);
 
   useEffect(() => {
     if (!dataLoaded) return;
@@ -563,6 +599,41 @@ export default function CalendarioPage() {
       prevTasks.filter((taskItem) => taskItem.id !== taskId)
     );
   }
+
+  function convertTaskToLabEvent(taskItem) {
+  if (!taskItem.date) {
+    alert("La tarea no tiene fecha asignada.");
+    return;
+  }
+
+  const alreadyConverted = events.some(
+    (eventItem) => eventItem.calendarTaskId === taskItem.id
+  );
+
+  if (alreadyConverted) {
+    alert("Esta tarea ya fue registrada en Laboratorio.");
+    return;
+  }
+
+  const labEvent = buildLabEventFromTask(taskItem, categories);
+
+  setEvents((prevEvents) => [...prevEvents, labEvent]);
+
+  setTasks((prevTasks) =>
+    prevTasks.map((currentTask) =>
+      currentTask.id === taskItem.id
+        ? {
+            ...currentTask,
+            done: true,
+            convertedToEvent: true,
+            linkedEventId: labEvent.id,
+          }
+        : currentTask
+    )
+  );
+
+  alert("La tarea fue marcada como realizada y registrada en Laboratorio.");
+}
 
   function updateCategory(categoryKey, field, value) {
     setCategories((prevCategories) =>
@@ -900,14 +971,15 @@ export default function CalendarioPage() {
 
                     <div className="flex flex-col gap-4">
                       {selectedTasks.map((taskItem) => (
-                        <CalendarTaskCard
+                       <CalendarTaskCard
                           key={taskItem.id}
                           taskItem={taskItem}
                           categories={categories}
                           onToggleDone={() => toggleTaskDone(taskItem.id)}
+                          onConvertToEvent={() => convertTaskToLabEvent(taskItem)}
                           onEdit={() => openEditTaskForm(taskItem)}
                           onDelete={() => deleteTask(taskItem.id)}
-                        />
+                      />
                       ))}
                     </div>
                   </div>
@@ -1180,6 +1252,7 @@ function CalendarTaskCard({
   taskItem,
   categories,
   onToggleDone,
+  onConvertToEvent,
   onEdit,
   onDelete,
 }) {
@@ -1214,34 +1287,48 @@ function CalendarTaskCard({
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onToggleDone}
-              className={`rounded-full px-3 py-2 text-sm font-bold shadow-sm hover:scale-105 transition ${
-                taskItem.done
-                  ? "bg-[#dbe7d5] text-[#3a8d43]"
-                  : "bg-[#fff2cf] text-[#6b3f22]"
-              }`}
-            >
-              {taskItem.done ? "Realizada" : "Pendiente"}
-            </button>
+  <button
+    type="button"
+    onClick={onToggleDone}
+    className={`rounded-full px-3 py-2 text-sm font-bold shadow-sm hover:scale-105 transition ${
+      taskItem.done
+        ? "bg-[#dbe7d5] text-[#3a8d43]"
+        : "bg-[#fff2cf] text-[#6b3f22]"
+    }`}
+  >
+    {taskItem.done ? "Realizada" : "Pendiente"}
+  </button>
 
-            <button
-              type="button"
-              onClick={onEdit}
-              className="rounded-full bg-[#dbe7d5] px-3 py-2 text-sm font-bold text-[#3a8d43] shadow-sm hover:scale-105 transition"
-            >
-              Editar
-            </button>
+  {taskItem.convertedToEvent ? (
+    <span className="rounded-full bg-[#dbe7d5] px-3 py-2 text-sm font-bold text-[#3a8d43] shadow-sm">
+      Registrada en Lab
+    </span>
+  ) : (
+    <button
+      type="button"
+      onClick={onConvertToEvent}
+      className="rounded-full bg-[#5f9b5f] px-3 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+    >
+      {taskItem.done ? "Registrar en Lab" : "Realizar y registrar"}
+    </button>
+  )}
 
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded-full bg-[#f3d6d6] px-3 py-2 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
-            >
-              Eliminar
-            </button>
-          </div>
+  <button
+    type="button"
+    onClick={onEdit}
+    className="rounded-full bg-[#dbe7d5] px-3 py-2 text-sm font-bold text-[#3a8d43] shadow-sm hover:scale-105 transition"
+  >
+    Editar
+  </button>
+
+  <button
+    type="button"
+    onClick={onDelete}
+    className="rounded-full bg-[#f3d6d6] px-3 py-2 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
+  >
+    Eliminar
+  </button>
+</div>
         </div>
       </div>
     </div>
