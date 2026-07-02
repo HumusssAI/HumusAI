@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-function safeParseJSON(value, fallback) {
-  try {
-    return value ? JSON.parse(value) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+import {
+  getStoredUsers,
+  getUserRoleByEmail,
+  normalizeEmail,
+  saveCurrentUser,
+  saveStoredUsers,
+} from "../authUtils";
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -37,10 +36,12 @@ export default function RegistroPage() {
       return;
     }
 
-    const users = safeParseJSON(localStorage.getItem("humusai-users"), []);
+    const users = getStoredUsers();
+
+    const normalizedEmail = normalizeEmail(email);
 
     const existingUser = users.find(
-      (user) => user.email.toLowerCase() === email.trim().toLowerCase()
+      (user) => normalizeEmail(user.email) === normalizedEmail
     );
 
     if (existingUser) {
@@ -48,25 +49,19 @@ export default function RegistroPage() {
       return;
     }
 
+    const role = getUserRoleByEmail(email);
+
     const newUser = {
       id: `user-${Date.now()}`,
       name: name.trim(),
       email: email.trim(),
       password,
+      role,
       createdAt: new Date().toISOString(),
     };
 
-    const publicUser = {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      createdAt: newUser.createdAt,
-    };
-
-    localStorage.setItem("humusai-users", JSON.stringify([...users, newUser]));
-    localStorage.setItem("humusai-auth-user", JSON.stringify(publicUser));
-
-    window.dispatchEvent(new Event("humusai-auth-change"));
+    saveStoredUsers([...users, newUser]);
+    saveCurrentUser(newUser);
 
     router.push("/perfil");
   }

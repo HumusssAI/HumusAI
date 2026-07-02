@@ -3,44 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-function safeParseJSON(value, fallback) {
-  try {
-    return value ? JSON.parse(value) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function getInitials(user) {
-  const fullName = user?.name?.trim();
-
-  if (fullName) {
-    const parts = fullName.split(" ").filter(Boolean);
-
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  if (user?.email) {
-    return user.email.slice(0, 2).toUpperCase();
-  }
-
-  return "US";
-}
+import {
+  getCurrentUser,
+  getInitials,
+  isAdminUser,
+  logoutCurrentUser,
+} from "../authUtils";
 
 export default function PerfilPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    const savedUser = safeParseJSON(
-      localStorage.getItem("humusai-auth-user"),
-      null
-    );
+    const savedUser = getCurrentUser();
 
     if (!savedUser) {
       router.replace("/login?redirect=/perfil");
@@ -51,8 +26,7 @@ export default function PerfilPage() {
   }, [router]);
 
   function logout() {
-    localStorage.removeItem("humusai-auth-user");
-    window.dispatchEvent(new Event("humusai-auth-change"));
+    logoutCurrentUser();
     router.push("/");
   }
 
@@ -64,6 +38,8 @@ export default function PerfilPage() {
     );
   }
 
+  const isAdmin = isAdminUser(currentUser);
+
   return (
     <main className="min-h-screen relative overflow-hidden humus-font-text text-[#6b3f22]">
       <div
@@ -74,7 +50,13 @@ export default function PerfilPage() {
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-10">
         <section className="w-full max-w-xl rounded-4x1 bg-[#f3ebe3] px-6 py-6 shadow-2xl">
           <div className="text-center">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-4xl font-bold text-[#6b3f22] shadow-lg border-4 border-[#5f9b5f]">
+            <div
+              className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-4xl font-bold shadow-lg border-4 ${
+                isAdmin
+                  ? "border-[#d4a017] text-[#8a5a00]"
+                  : "border-[#5f9b5f] text-[#6b3f22]"
+              }`}
+            >
               {getInitials(currentUser)}
             </div>
 
@@ -84,7 +66,19 @@ export default function PerfilPage() {
 
             <p className="mt-2 text-2xl font-bold">{currentUser.name}</p>
 
-            <p className="mt-1 text-lg text-[#4a3425]">{currentUser.email}</p>
+            <p className="mt-1 text-lg text-[#4a3425]">
+              {currentUser.email}
+            </p>
+
+            <p
+              className={`mt-4 inline-block rounded-full px-5 py-2 text-lg font-bold shadow-md ${
+                isAdmin
+                  ? "bg-[#fff3c4] text-[#8a5a00] border-2 border-[#d4a017]"
+                  : "bg-white text-[#5f9b5f] border-2 border-[#5f9b5f]"
+              }`}
+            >
+              {isAdmin ? "Administrador" : "Usuario general"}
+            </p>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-3">
@@ -101,6 +95,15 @@ export default function PerfilPage() {
             >
               Ir a Comunidad
             </Link>
+
+            {isAdmin && (
+              <Link
+                href="/comunidad/articulos"
+                className="rounded-2xl bg-[#fff3c4] px-4 py-3 text-center text-xl font-bold text-[#8a5a00] shadow-md border-2 border-[#d4a017] hover:scale-105 transition"
+              >
+                Administrar artículos científicos
+              </Link>
+            )}
 
             <Link
               href="/"
