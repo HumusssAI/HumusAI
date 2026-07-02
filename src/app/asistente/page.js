@@ -139,24 +139,24 @@ export default function AsistentePage() {
   return (
     <main className="min-h-screen bg-[#fffdf8] text-[#6b3f22] humus-font-text">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-40 h-28 bg-[#5f9b5f] shadow-md">
-        <div className="h-full flex items-center justify-between px-8 md:px-16">
-          <Link href="/" className="flex items-center">
-            <img
-              src="/icons/logohumusai.png"
-              alt="Logo HumusAI"
-              className="h-28 w-auto object-contain"
-            />
-          </Link>
+       <header className="fixed top-0 left-0 right-0 z-40 h-28 bg-[#5f9b5f] shadow-md">
+  <div className="relative h-full flex items-center justify-center px-6 md:px-12">
+    <div className="absolute left-6 md:left-12 flex items-center gap-3">
+      <Link
+        href="/"
+        className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+      >
+        Inicio
+      </Link>
+    </div>
 
-          <Link
-            href="/"
-            className="rounded-full bg-white px-6 py-3 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Volver al inicio
-          </Link>
-        </div>
-      </header>
+    <img
+      src="/icons/logohumusai.png"
+      alt="Logo HumusAI"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
+</header>
 
       <section className="pt-36 px-4 md:px-10 pb-8">
         <div className="max-w-7xl mx-auto">

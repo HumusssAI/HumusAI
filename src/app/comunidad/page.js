@@ -483,12 +483,6 @@ export default function ComunidadPage() {
                                 Reportar / denunciar
                               </button>
 
-                              <button
-                                onClick={() => deletePost(post.id)}
-                                className="block w-full rounded-xl px-3 py-2 text-left text-red-600 hover:bg-[#f2ebe3]"
-                              >
-                                Eliminar
-                              </button>
                             </div>
                           )}
                         </div>
