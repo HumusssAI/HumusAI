@@ -21,15 +21,7 @@ export default function Home() {
             />
           </Link>
 
-          <div className="flex items-center gap-6">
-            <button className="rounded-full bg-white px-6 py-3 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition">
-              Iniciar sesión
-            </button>
-
-            <button className="rounded-full bg-white px-6 py-3 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition">
-              Registrarse
-            </button>
-          </div>
+          <div className="w-72" />
         </div>
       </header>
 

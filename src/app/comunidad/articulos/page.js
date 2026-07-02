@@ -170,15 +170,7 @@ export default function ArticulosPage() {
               />
             </div>
 
-            <div className="flex items-center gap-3 pt-1">
-              <button className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition">
-                Iniciar sesión
-              </button>
-
-              <button className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition">
-                Registrarse
-              </button>
-            </div>
+            <div className="w-72" />
           </div>
         </header>
 

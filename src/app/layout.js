@@ -1,5 +1,6 @@
 import "./globals.css";
 import HumiQuickChat from "./HumiQuickChat.jsx";
+import AuthHeaderActions from "./AuthHeaderActions.jsx";
 
 export const metadata = {
   title: "HumusAI",
@@ -11,6 +12,7 @@ export default function RootLayout({ children }) {
     <html lang="es">
       <body>
         {children}
+        <AuthHeaderActions />
         <HumiQuickChat />
       </body>
     </html>
