@@ -30,7 +30,6 @@ export function normalizeUsername(username) {
 
 export function getUserRoleByEmail(email) {
   const normalizedEmail = normalizeEmail(email);
-
   const isAdmin = ADMIN_EMAILS.map(normalizeEmail).includes(normalizedEmail);
 
   return isAdmin ? "admin" : "user";
@@ -89,20 +88,50 @@ export function getPublicUser(user) {
   };
 }
 
+export function findStoredUserBySessionUser(sessionUser) {
+  if (!sessionUser) return null;
+
+  const users = getStoredUsers();
+
+  return (
+    users.find((user) => user.id && user.id === sessionUser.id) ||
+    users.find(
+      (user) =>
+        normalizeEmail(user.email) === normalizeEmail(sessionUser.email)
+    ) ||
+    null
+  );
+}
+
 export function getCurrentUser() {
-  const savedUser = safeParseJSON(
+  const savedSessionUser = safeParseJSON(
     localStorage.getItem(CURRENT_USER_STORAGE_KEY),
     null
   );
 
-  return getPublicUser(savedUser);
+  if (!savedSessionUser) return null;
+
+  const storedUser = findStoredUserBySessionUser(savedSessionUser);
+
+  const mergedUser = {
+    ...savedSessionUser,
+    ...storedUser,
+  };
+
+  return getPublicUser(mergedUser);
 }
 
 export function saveCurrentUser(user) {
-  const publicUser = getPublicUser(user);
+  const storedUser = findStoredUserBySessionUser(user);
+
+  const mergedUser = {
+    ...user,
+    ...storedUser,
+  };
+
+  const publicUser = getPublicUser(mergedUser);
 
   localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(publicUser));
-
   window.dispatchEvent(new Event("humusai-auth-change"));
 
   return publicUser;

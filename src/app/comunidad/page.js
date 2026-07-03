@@ -6,33 +6,6 @@ import { getCurrentUser, getPublicUsername, isAdminUser } from "../authUtils";
 
 const INITIAL_POSTS = [];
 
-const INITIAL_ARTICLES = [
-  {
-    id: "article-1",
-    title: "Vermicomposting organic wastes: a review",
-    source: "Scientific review",
-    year: "2024",
-    summary:
-      "Revisión general sobre transformación de residuos orgánicos mediante vermicompostaje, calidad del humus y factores ambientales.",
-  },
-  {
-    id: "article-2",
-    title: "Earthworm species in compost systems",
-    source: "Applied Soil Ecology",
-    year: "2023",
-    summary:
-      "Comparación de especies de lombrices usadas en compostaje y su eficiencia según tipo de residuo y condiciones ambientales.",
-  },
-  {
-    id: "article-3",
-    title: "Moisture and pH effects on worm activity",
-    source: "Waste Management Journal",
-    year: "2022",
-    summary:
-      "Trabajo sobre cómo la humedad, el pH y la temperatura afectan la actividad y reproducción de lombrices.",
-  },
-];
-
 function safeParseJSON(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -108,6 +81,12 @@ function getPostImages(post) {
   return [];
 }
 
+function getPostAuthor(post) {
+  if (post?.username) return post.username;
+  if (post?.author) return post.author;
+  return "@usuario";
+}
+
 export default function ComunidadPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [posts, setPosts] = useState(INITIAL_POSTS);
@@ -119,7 +98,6 @@ export default function ComunidadPage() {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-
     const savedUser = getCurrentUser();
     setCurrentUser(savedUser);
 
@@ -143,7 +121,9 @@ export default function ComunidadPage() {
 
     return posts
       .filter((post) => {
-        const searchable = `${post.username} ${post.title} ${post.content}`.toLowerCase();
+        const searchable = `${getPostAuthor(post)} ${post.title || ""} ${
+          post.content || ""
+        }`.toLowerCase();
 
         return searchable.includes(normalized);
       })
@@ -153,12 +133,72 @@ export default function ComunidadPage() {
   const selectedPost =
     posts.find((post) => post.id === selectedPostId) || null;
 
+  function canManagePost(post) {
+    if (!currentUser || !post) return false;
+
+    const isAdmin = isAdminUser(currentUser);
+
+    if (isAdmin) return true;
+
+    const isOwnerById = post.userId && post.userId === currentUser.id;
+    const isOwnerByEmail =
+      post.userEmail && post.userEmail === currentUser.email;
+
+    return Boolean(isOwnerById || isOwnerByEmail);
+  }
+
+  function canManageComment(comment) {
+    if (!currentUser || !comment) return false;
+
+    const isAdmin = isAdminUser(currentUser);
+
+    if (isAdmin) return true;
+
+    const isOwnerById = comment.userId && comment.userId === currentUser.id;
+    const isOwnerByEmail =
+      comment.userEmail && comment.userEmail === currentUser.email;
+
+    return Boolean(isOwnerById || isOwnerByEmail);
+  }
+
+  function deleteComment(postId, commentId) {
+    const post = posts.find((postItem) => postItem.id === postId);
+
+    const comment = post?.comments?.find(
+      (commentItem) => commentItem.id === commentId
+    );
+
+    if (!canManageComment(comment)) {
+      alert(
+        "Solo podés eliminar tus propios comentarios. El administrador puede moderar todos."
+      );
+      return;
+    }
+
+    const confirmed = confirm("¿Querés eliminar este comentario?");
+
+    if (!confirmed) return;
+
+    setPosts((prevPosts) =>
+      prevPosts.map((postItem) =>
+        postItem.id === postId
+          ? {
+              ...postItem,
+              comments: (postItem.comments || []).filter(
+                (commentItem) => commentItem.id !== commentId
+              ),
+            }
+          : postItem
+      )
+    );
+  }
+
   function openImageViewer(image, imageName) {
     setImageViewer({
       image,
       imageName: imageName || "Imagen de la charla",
     });
-  }    
+  }
 
   function openPost(postId) {
     setSelectedPostId(postId);
@@ -213,41 +253,41 @@ export default function ComunidadPage() {
   }
 
   function addComment() {
-  if (!selectedPostId) return;
+    if (!selectedPostId) return;
 
-  if (!currentUser) {
-    alert("Tenés que iniciar sesión para comentar.");
-    return;
+    if (!currentUser) {
+      alert("Tenés que iniciar sesión para comentar.");
+      return;
+    }
+
+    if (!commentText.trim()) {
+      alert("Escribí un comentario.");
+      return;
+    }
+
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      userId: currentUser.id,
+      userEmail: currentUser.email,
+      author: getPublicUsername(currentUser),
+      displayName: currentUser.name,
+      text: commentText.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === selectedPostId
+          ? {
+              ...post,
+              comments: [...(post.comments || []), newComment],
+            }
+          : post
+      )
+    );
+
+    setCommentText("");
   }
-
-  if (!commentText.trim()) {
-    alert("Escribí un comentario.");
-    return;
-  }
-
-  const newComment = {
-    id: `comment-${Date.now()}`,
-    userId: currentUser.id,
-    userEmail: currentUser.email,
-    author: getPublicUsername(currentUser),
-    displayName: currentUser.name,
-    text: commentText.trim(),
-    createdAt: new Date().toISOString(),
-  };
-
-  setPosts((prevPosts) =>
-    prevPosts.map((post) =>
-      post.id === selectedPostId
-        ? {
-            ...post,
-            comments: [...(post.comments || []), newComment],
-          }
-        : post
-    )
-  );
-
-  setCommentText("");
-}
 
   function toggleSave(postId) {
     setPosts((prevPosts) =>
@@ -278,6 +318,15 @@ export default function ComunidadPage() {
   }
 
   function deletePost(postId) {
+    const postToDelete = posts.find((post) => post.id === postId);
+
+    if (!canManagePost(postToDelete)) {
+      alert(
+        "Solo podés eliminar tus propias charlas. El administrador puede moderar todas."
+      );
+      return;
+    }
+
     const confirmed = confirm("¿Querés eliminar esta charla?");
 
     if (!confirmed) return;
@@ -299,7 +348,6 @@ export default function ComunidadPage() {
       />
 
       <div className="relative z-10">
-        {/* Header */}
         <header className="bg-[#5b9b55] px-5 py-4 shadow-md">
           <div className="flex items-start justify-between gap-4">
             <div className="pt-1">
@@ -323,10 +371,8 @@ export default function ComunidadPage() {
           </div>
         </header>
 
-        {/* Contenido */}
         <section className="px-4 py-4 md:px-5 md:py-5">
           <div className="grid grid-cols-1 md:grid-cols-[130px_1fr] gap-4 items-start">
-            {/* Botones laterales */}
             <aside className="flex flex-col gap-4">
               <Link
                 href="/comunidad/nueva"
@@ -338,18 +384,16 @@ export default function ComunidadPage() {
               </Link>
 
               <Link
-  href="/comunidad/articulos"
-  className="rounded-[1.8rem] bg-[#6a6a6a] px-4 py-5 text-center humus-font-text text-2xl text-white shadow-lg hover:scale-105 transition leading-tight"
->
-  Artículos
-  <br />
-  científicos
-</Link>
+                href="/comunidad/articulos"
+                className="rounded-[1.8rem] bg-[#6a6a6a] px-4 py-5 text-center humus-font-text text-2xl text-white shadow-lg hover:scale-105 transition leading-tight"
+              >
+                Artículos
+                <br />
+                científicos
+              </Link>
             </aside>
 
-            {/* Feed */}
             <div className="space-y-4">
-              {/* Buscador */}
               <div className="rounded-2xl border-2 border-[#8f6d4e] bg-[#f3ebe3] px-4 py-3 shadow-lg">
                 <div className="flex items-center gap-3">
                   <span className="text-4xl text-[#6b3f22]">⌕</span>
@@ -364,7 +408,6 @@ export default function ComunidadPage() {
                 </div>
               </div>
 
-              {/* Charlas */}
               <div className="space-y-4">
                 {filteredPosts.length > 0 ? (
                   filteredPosts.map((post) => (
@@ -375,7 +418,9 @@ export default function ComunidadPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <p className="text-xl font-bold">{post.username}</p>
+                          <p className="text-xl font-bold">
+                            {getPostAuthor(post)}
+                          </p>
 
                           <h2 className="mt-1 text-2xl font-bold leading-snug">
                             {post.title}
@@ -385,25 +430,30 @@ export default function ComunidadPage() {
                             {post.content}
                           </p>
 
-                         {getPostImages(post).length > 0 && (
-  <div className="mt-4 flex flex-wrap gap-3">
-    {getPostImages(post).map((imageItem) => (
-      <button
-        key={imageItem.id}
-        type="button"
-        onClick={() => openImageViewer(imageItem.src, imageItem.name)}
-        className="block h-48 w-48 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
-        title="Ver imagen"
-      >
-        <img
-          src={imageItem.src}
-          alt={imageItem.name || post.title}
-          className="h-full w-full object-cover"
-        />
-      </button>
-    ))}
-  </div>
-)}
+                          {getPostImages(post).length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-3">
+                              {getPostImages(post).map((imageItem) => (
+                                <button
+                                  key={imageItem.id}
+                                  type="button"
+                                  onClick={() =>
+                                    openImageViewer(
+                                      imageItem.src,
+                                      imageItem.name
+                                    )
+                                  }
+                                  className="block h-48 w-48 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
+                                  title="Ver imagen"
+                                >
+                                  <img
+                                    src={imageItem.src}
+                                    alt={imageItem.name || post.title}
+                                    className="h-full w-full object-cover"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
 
                           <p className="mt-2 text-sm text-[#cfcfcf]">
                             {formatDate(post.createdAt)}
@@ -445,6 +495,14 @@ export default function ComunidadPage() {
                                 Reportar / denunciar
                               </button>
 
+                              {canManagePost(post) && (
+                                <button
+                                  onClick={() => deletePost(post.id)}
+                                  className="block w-full rounded-xl px-3 py-2 text-left text-red-600 hover:bg-[#f2ebe3]"
+                                >
+                                  Eliminar
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -500,11 +558,12 @@ export default function ComunidadPage() {
         </section>
       </div>
 
-      {/* Modal comentarios */}
       {selectedPost && (
         <Modal onClose={() => setSelectedPostId(null)}>
           <div className="rounded-4xl bg-[#f4ede5] p-6 text-[#6b3f22] max-h-[85vh] overflow-y-auto">
-            <h2 className="text-xl font-bold">{selectedPost.username}</h2>
+            <h2 className="text-xl font-bold">
+              {getPostAuthor(selectedPost)}
+            </h2>
 
             <h3 className="mt-2 text-3xl font-bold leading-snug">
               {selectedPost.title}
@@ -514,25 +573,27 @@ export default function ComunidadPage() {
               {selectedPost.content}
             </p>
 
-          {getPostImages(selectedPost).length > 0 && (
-  <div className="mt-4 flex flex-wrap gap-3">
-    {getPostImages(selectedPost).map((imageItem) => (
-      <button
-        key={imageItem.id}
-        type="button"
-        onClick={() => openImageViewer(imageItem.src, imageItem.name)}
-        className="block h-52 w-52 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
-        title="Ver imagen"
-      >
-        <img
-          src={imageItem.src}
-          alt={imageItem.name || selectedPost.title}
-          className="h-full w-full object-cover"
-        />
-      </button>
-    ))}
-  </div>
-)}
+            {getPostImages(selectedPost).length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-3">
+                {getPostImages(selectedPost).map((imageItem) => (
+                  <button
+                    key={imageItem.id}
+                    type="button"
+                    onClick={() =>
+                      openImageViewer(imageItem.src, imageItem.name)
+                    }
+                    className="block h-52 w-52 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
+                    title="Ver imagen"
+                  >
+                    <img
+                      src={imageItem.src}
+                      alt={imageItem.name || selectedPost.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
 
             <p className="mt-2 text-sm text-[#7a6351]">
               {formatDate(selectedPost.createdAt)}
@@ -543,16 +604,34 @@ export default function ComunidadPage() {
 
               <div className="space-y-3">
                 {(selectedPost.comments || []).length > 0 ? (
-                  selectedPost.comments.map((comment) => (
+                  (selectedPost.comments || []).map((comment) => (
                     <div
                       key={comment.id}
                       className="rounded-2xl bg-white px-4 py-3 shadow-sm"
                     >
-                      <p className="font-bold">{comment.author}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold">
+                            {comment.author || "@usuario"}
+                          </p>
 
-                      <p className="text-sm text-[#7a6351]">
-                        {formatDate(comment.createdAt)}
-                      </p>
+                          <p className="text-sm text-[#7a6351]">
+                            {formatDate(comment.createdAt)}
+                          </p>
+                        </div>
+
+                        {canManageComment(comment) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteComment(selectedPost.id, comment.id)
+                            }
+                            className="rounded-full bg-[#f3d6d6] px-3 py-1 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
 
                       <p className="mt-2 text-lg text-[#4a3425]">
                         {comment.text}
@@ -584,31 +663,32 @@ export default function ComunidadPage() {
           </div>
         </Modal>
       )}
-    {imageViewer && (
-  <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/90 px-4 py-6">
-    <button
-      type="button"
-      onClick={() => setImageViewer(null)}
-      className="absolute inset-0"
-      aria-label="Cerrar visualizador"
-    />
 
-    <button
-      type="button"
-      onClick={() => setImageViewer(null)}
-      className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-3xl font-bold text-black shadow-lg hover:scale-105 transition"
-      aria-label="Cerrar imagen"
-    >
-      ✕
-    </button>
+      {imageViewer && (
+        <div className="fixed inset-0 z-150 flex items-center justify-center bg-black/90 px-4 py-6">
+          <button
+            type="button"
+            onClick={() => setImageViewer(null)}
+            className="absolute inset-0"
+            aria-label="Cerrar visualizador"
+          />
 
-    <img
-      src={imageViewer.image}
-      alt={imageViewer.imageName}
-      className="relative z-10 max-h-[88vh] max-w-[92vw] rounded-3xl object-contain shadow-2xl"
-    />
-  </div>
-)}
+          <button
+            type="button"
+            onClick={() => setImageViewer(null)}
+            className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-3xl font-bold text-black shadow-lg hover:scale-105 transition"
+            aria-label="Cerrar imagen"
+          >
+            ✕
+          </button>
+
+          <img
+            src={imageViewer.image}
+            alt={imageViewer.imageName}
+            className="relative z-10 max-h-[88vh] max-w-[92vw] rounded-3xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </main>
   );
 }
