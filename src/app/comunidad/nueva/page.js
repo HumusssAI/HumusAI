@@ -2,28 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { getCurrentUser, getPublicUsername, isAdminUser } from "../../authUtils";
 
-const CURRENT_USER = "@USUARIO6";
-
-const INITIAL_POSTS = [
-  {
-    id: "post-1",
-    username: "@USUARIO1",
-    title:
-      "¿Alguien sabe qué especie de lombriz es la lombriz de Tandil? ¿Sirve para compostaje?",
-    content:
-      "Compré en una casa de pesca una porción de lombriz de Tandil pero no sé su nombre científico y si sirve para compost.",
-    createdAt: "2026-06-29T18:20",
-    likes: 14,
-    dislikes: 2,
-    userVote: null,
-    comments: [],
-    saved: false,
-    image: "",
-    imageName: "",
-    images: [],
-  },
-];
+const INITIAL_POSTS = [];
 
 function safeParseJSON(value, fallback) {
   try {
@@ -120,6 +101,7 @@ function compressImageToBase64(file) {
 export default function NuevaCharlaPage() {
   const fileInputRef = useRef(null);
 
+  const [currentUser, setCurrentUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -129,15 +111,19 @@ export default function NuevaCharlaPage() {
   const [editingPostId, setEditingPostId] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  useEffect(() => {
-    const savedPosts = safeParseJSON(
-      localStorage.getItem("humusai-community-posts"),
-      INITIAL_POSTS
-    );
+useEffect(() => {
+  const savedUser = getCurrentUser();
 
-    setPosts(Array.isArray(savedPosts) ? savedPosts : INITIAL_POSTS);
-    setDataLoaded(true);
-  }, []);
+  setCurrentUser(savedUser);
+
+  const savedPosts = safeParseJSON(
+    localStorage.getItem("humusai-community-posts"),
+    INITIAL_POSTS
+  );
+
+  setPosts(Array.isArray(savedPosts) ? savedPosts : INITIAL_POSTS);
+  setDataLoaded(true);
+}, []);
 
   useEffect(() => {
     if (!dataLoaded) return;
@@ -154,10 +140,18 @@ export default function NuevaCharlaPage() {
   }, [posts, dataLoaded]);
 
   const myPosts = useMemo(() => {
-    return posts
-      .filter((post) => post.username === CURRENT_USER)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [posts]);
+  if (!currentUser) return [];
+
+  return posts
+    .filter((post) => {
+      if (post.userId) {
+        return post.userId === currentUser.id;
+      }
+
+      return post.userEmail === currentUser.email;
+    })
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}, [posts, currentUser]);
 
   async function handleImageChange(event) {
     const selectedFiles = Array.from(event.target.files || []);
@@ -209,6 +203,16 @@ export default function NuevaCharlaPage() {
     });
   }
 function startEditPost(post) {
+  if (!currentUser) return;
+
+  const isOwner = post.userId === currentUser.id;
+  const isAdmin = isAdminUser(currentUser);
+
+  if (!isOwner && !isAdmin) {
+    alert("Solo podés editar tus propias charlas.");
+    return;
+  }
+
   const postImages = getPostImages(post).map((imageItem, index) => ({
     id: imageItem.id || `edit-image-${Date.now()}-${index}`,
     src: imageItem.src,
@@ -235,6 +239,11 @@ function cancelEditPost() {
 }
 
   function publishPost() {
+  if (!currentUser) {
+    alert("Tenés que iniciar sesión para publicar.");
+    return;
+  }
+
   if (!title.trim()) {
     alert("Ingresá un título para la charla.");
     return;
@@ -247,19 +256,26 @@ function cancelEditPost() {
 
   if (editingPostId) {
     setPosts((prevPosts) =>
-      prevPosts.map((post) =>
-        post.id === editingPostId
-          ? {
-              ...post,
-              title: title.trim(),
-              content: content.trim(),
-              images,
-              image: images[0]?.src || "",
-              imageName: images[0]?.name || "",
-              editedAt: getCurrentDateTimeLocal(),
-            }
-          : post
-      )
+      prevPosts.map((post) => {
+        if (post.id !== editingPostId) return post;
+
+        const isOwner = post.userId === currentUser.id;
+        const isAdmin = isAdminUser(currentUser);
+
+        if (!isOwner && !isAdmin) {
+          return post;
+        }
+
+        return {
+          ...post,
+          title: title.trim(),
+          content: content.trim(),
+          images,
+          image: images[0]?.src || "",
+          imageName: images[0]?.name || "",
+          editedAt: getCurrentDateTimeLocal(),
+        };
+      })
     );
 
     setEditingPostId(null);
@@ -272,7 +288,10 @@ function cancelEditPost() {
 
   const newPost = {
     id: `post-${Date.now()}`,
-    username: CURRENT_USER,
+    userId: currentUser.id,
+    userEmail: currentUser.email,
+    username: getPublicUsername(currentUser),
+    displayName: currentUser.name,
     title: title.trim(),
     content: content.trim(),
     createdAt: getCurrentDateTimeLocal(),
@@ -294,6 +313,20 @@ function cancelEditPost() {
 }
 
   function deleteMyPost(postId) {
+  if (!currentUser) return;
+
+  const postToDelete = posts.find((post) => post.id === postId);
+
+  if (!postToDelete) return;
+
+  const isOwner = postToDelete.userId === currentUser.id;
+  const isAdmin = isAdminUser(currentUser);
+
+  if (!isOwner && !isAdmin) {
+    alert("Solo podés eliminar tus propias charlas.");
+    return;
+  }
+
   const confirmed = confirm("¿Querés eliminar esta charla?");
 
   if (!confirmed) return;
@@ -337,11 +370,7 @@ function cancelEditPost() {
               />
             </div>
 
-            <div className="pt-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-lg font-bold text-[#6b3f22] shadow-lg">
-                JS
-              </div>
-            </div>
+            <div className="w-28" />
           </div>
         </header>
 
@@ -359,7 +388,9 @@ function cancelEditPost() {
 
             <div className="max-w-4xl">
               <section className="rounded-[1.8rem] bg-[#303033] px-5 py-4 text-white shadow-xl">
-                <p className="text-xl font-bold">{CURRENT_USER}</p>
+                <p className="text-xl font-bold">
+                  {currentUser ? getPublicUsername(currentUser) : "@USUARIO"}
+                </p>
 
                 <input
                   type="text"
@@ -560,7 +591,9 @@ function cancelEditPost() {
                     })
                   ) : (
                     <article className="rounded-3x1 bg-[#303033] px-5 py-5 text-white shadow-xl">
-                      <p className="text-xl font-bold">{CURRENT_USER}</p>
+                      <p className="text-xl font-bold">
+  {currentUser ? getPublicUsername(currentUser) : "@USUARIO"}
+</p>
 {editingPostId && (
   <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-4 py-2">
     <p className="text-sm font-bold text-white">

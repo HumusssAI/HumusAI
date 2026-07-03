@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   getCurrentUser,
   getInitials,
+  getPublicUsername,
   isAdminUser,
   logoutCurrentUser,
 } from "../authUtils";
@@ -64,12 +65,15 @@ export default function PerfilPage() {
               Mi perfil
             </h1>
 
-            <p className="mt-2 text-2xl font-bold">{currentUser.name}</p>
+<p className="mt-2 text-2xl font-bold">{currentUser.name}</p>
 
-            <p className="mt-1 text-lg text-[#4a3425]">
-              {currentUser.email}
-            </p>
+<p className="mt-1 text-xl font-bold text-[#5f9b5f]">
+  {getPublicUsername(currentUser)}
+</p>
 
+<p className="mt-1 text-lg text-[#4a3425]">
+  {currentUser.email}
+</p>
             <p
               className={`mt-4 inline-block rounded-full px-5 py-2 text-lg font-bold shadow-md ${
                 isAdmin

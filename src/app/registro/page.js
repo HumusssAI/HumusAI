@@ -7,6 +7,7 @@ import {
   getStoredUsers,
   getUserRoleByEmail,
   normalizeEmail,
+  normalizeUsername,
   saveCurrentUser,
   saveStoredUsers,
 } from "../authUtils";
@@ -15,6 +16,7 @@ export default function RegistroPage() {
   const router = useRouter();
 
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -22,7 +24,26 @@ export default function RegistroPage() {
     event.preventDefault();
 
     if (!name.trim()) {
-      alert("Ingresá tu nombre.");
+      alert("Ingresá tu nombre y apellido.");
+      return;
+    }
+
+    const normalizedUsername = normalizeUsername(username);
+
+    if (!normalizedUsername) {
+      alert("Ingresá un nombre de usuario.");
+      return;
+    }
+
+    if (normalizedUsername.length < 3) {
+      alert("El nombre de usuario debe tener al menos 3 caracteres.");
+      return;
+    }
+
+    if (!/^[a-z0-9._-]+$/.test(normalizedUsername)) {
+      alert(
+        "El nombre de usuario solo puede tener letras, números, puntos, guiones o guiones bajos."
+      );
       return;
     }
 
@@ -40,12 +61,21 @@ export default function RegistroPage() {
 
     const normalizedEmail = normalizeEmail(email);
 
-    const existingUser = users.find(
+    const existingEmail = users.find(
       (user) => normalizeEmail(user.email) === normalizedEmail
     );
 
-    if (existingUser) {
+    if (existingEmail) {
       alert("Ya existe una cuenta con ese email.");
+      return;
+    }
+
+    const existingUsername = users.find(
+      (user) => normalizeUsername(user.username) === normalizedUsername
+    );
+
+    if (existingUsername) {
+      alert("Ese nombre de usuario ya está en uso.");
       return;
     }
 
@@ -54,6 +84,7 @@ export default function RegistroPage() {
     const newUser = {
       id: `user-${Date.now()}`,
       name: name.trim(),
+      username: normalizedUsername,
       email: email.trim(),
       password,
       role,
@@ -93,7 +124,7 @@ export default function RegistroPage() {
 
           <form onSubmit={handleRegister} className="mt-6 space-y-4">
             <div>
-              <label className="text-lg font-bold">Nombre</label>
+              <label className="text-lg font-bold">Nombre y apellido</label>
 
               <input
                 type="text"
@@ -102,6 +133,27 @@ export default function RegistroPage() {
                 className="mt-1 w-full rounded-2xl border-2 border-[#d7c4b5] bg-white px-4 py-3 text-lg outline-none"
                 placeholder="Ej: Juan Pablo Sito"
               />
+            </div>
+
+            <div>
+              <label className="text-lg font-bold">Nombre de usuario</label>
+
+              <div className="mt-1 flex items-center rounded-2xl border-2 border-[#d7c4b5] bg-white px-4 py-3">
+                <span className="text-lg font-bold text-[#6b3f22]">@</span>
+
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  className="ml-1 w-full bg-transparent text-lg outline-none"
+                  placeholder="usuario"
+                />
+              </div>
+
+              <p className="mt-1 text-sm text-[#7a6351]">
+                Sin espacios. Podés usar letras, números, puntos, guiones y
+                guiones bajos.
+              </p>
             </div>
 
             <div>

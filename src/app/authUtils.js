@@ -21,6 +21,13 @@ export function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+export function normalizeUsername(username) {
+  return String(username || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
 export function getUserRoleByEmail(email) {
   const normalizedEmail = normalizeEmail(email);
 
@@ -37,6 +44,36 @@ export function saveStoredUsers(users) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
 }
 
+export function getInitials(user) {
+  const fullName = user?.name?.trim();
+
+  if (fullName) {
+    const parts = fullName.split(" ").filter(Boolean);
+
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  if (user?.email) {
+    return user.email.slice(0, 2).toUpperCase();
+  }
+
+  return "US";
+}
+
+export function getPublicUsername(user) {
+  if (!user) return "@usuario";
+
+  if (user.username) {
+    return `@${user.username}`;
+  }
+
+  return `@${getInitials(user)}`;
+}
+
 export function getPublicUser(user) {
   if (!user) return null;
 
@@ -45,6 +82,7 @@ export function getPublicUser(user) {
   return {
     id: user.id,
     name: user.name,
+    username: user.username || "",
     email: user.email,
     createdAt: user.createdAt,
     role,
@@ -73,26 +111,6 @@ export function saveCurrentUser(user) {
 export function logoutCurrentUser() {
   localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
   window.dispatchEvent(new Event("humusai-auth-change"));
-}
-
-export function getInitials(user) {
-  const fullName = user?.name?.trim();
-
-  if (fullName) {
-    const parts = fullName.split(" ").filter(Boolean);
-
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  if (user?.email) {
-    return user.email.slice(0, 2).toUpperCase();
-  }
-
-  return "US";
 }
 
 export function isAdminUser(user) {

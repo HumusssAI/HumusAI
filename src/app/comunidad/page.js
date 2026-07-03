@@ -2,60 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { getCurrentUser, getPublicUsername, isAdminUser } from "../authUtils";
 
-const INITIAL_POSTS = [
-  {
-    id: "post-1",
-    username: "@USUARIO1",
-    title:
-      "¿Alguien sabe qué especie de lombriz es la lombriz de Tandil? ¿Sirve para compostaje?",
-    content:
-      "Compré en una casa de pesca una porción de lombriz de Tandil pero no sé su nombre científico y si sirve para compost.",
-    createdAt: "2026-06-29T18:20",
-    likes: 14,
-    dislikes: 2,
-    userVote: null,
-    comments: [
-      {
-        id: "comment-1",
-        author: "@Humi",
-        text: "Podría tratarse de una lombriz usada para carnada. Habría que revisar fotos, color, tamaño y comportamiento para orientarte mejor.",
-        createdAt: "2026-06-29T18:45",
-      },
-      {
-        id: "comment-2",
-        author: "@UsuarioX",
-        text: "Si podés subí una foto porque algunas no son las mejores para vermicompostaje.",
-        createdAt: "2026-06-29T19:02",
-      },
-    ],
-    saved: false,
-    image: "",
-    imageName: "",
-  },
-  {
-    id: "post-2",
-    username: "@USUARIOX",
-    title: "¿Dónde puedo conseguir lombrices californianas?",
-    content:
-      "Hola comunidad, ¿alguien sabe dónde puedo conseguir lombrices californianas para compost acá en Rosario?",
-    createdAt: "2026-06-28T16:10",
-    likes: 21,
-    dislikes: 1,
-    userVote: null,
-    comments: [
-      {
-        id: "comment-3",
-        author: "@Usuario2",
-        text: "A veces se consiguen por Marketplace o grupos de huerta.",
-        createdAt: "2026-06-28T16:50",
-      },
-    ],
-    saved: false,
-    image: "",
-    imageName: "",
-  },
-];
+const INITIAL_POSTS = [];
 
 const INITIAL_ARTICLES = [
   {
@@ -160,6 +109,7 @@ function getPostImages(post) {
 }
 
 export default function ComunidadPage() {
+  const [currentUser, setCurrentUser] = useState(null);
   const [posts, setPosts] = useState(INITIAL_POSTS);
   const [searchText, setSearchText] = useState("");
   const [selectedPostId, setSelectedPostId] = useState(null);
@@ -169,6 +119,10 @@ export default function ComunidadPage() {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
+
+    const savedUser = getCurrentUser();
+    setCurrentUser(savedUser);
+
     const savedPosts = safeParseJSON(
       localStorage.getItem("humusai-community-posts"),
       INITIAL_POSTS
@@ -259,33 +213,41 @@ export default function ComunidadPage() {
   }
 
   function addComment() {
-    if (!selectedPostId) return;
+  if (!selectedPostId) return;
 
-    if (!commentText.trim()) {
-      alert("Escribí un comentario.");
-      return;
-    }
-
-    const newComment = {
-      id: `comment-${Date.now()}`,
-      author: "@USUARIO",
-      text: commentText.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    setPosts((prevPosts) =>
-      prevPosts.map((post) =>
-        post.id === selectedPostId
-          ? {
-              ...post,
-              comments: [...(post.comments || []), newComment],
-            }
-          : post
-      )
-    );
-
-    setCommentText("");
+  if (!currentUser) {
+    alert("Tenés que iniciar sesión para comentar.");
+    return;
   }
+
+  if (!commentText.trim()) {
+    alert("Escribí un comentario.");
+    return;
+  }
+
+  const newComment = {
+    id: `comment-${Date.now()}`,
+    userId: currentUser.id,
+    userEmail: currentUser.email,
+    author: getPublicUsername(currentUser),
+    displayName: currentUser.name,
+    text: commentText.trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  setPosts((prevPosts) =>
+    prevPosts.map((post) =>
+      post.id === selectedPostId
+        ? {
+            ...post,
+            comments: [...(post.comments || []), newComment],
+          }
+        : post
+    )
+  );
+
+  setCommentText("");
+}
 
   function toggleSave(postId) {
     setPosts((prevPosts) =>
