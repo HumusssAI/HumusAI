@@ -221,12 +221,21 @@ export default function AdminPage() {
 
       <div className="relative z-10 min-h-screen px-4 py-8">
         <header className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <Link
-            href="/perfil"
-            className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
-          >
-            Volver al perfil
-          </Link>
+          <div className="flex flex-wrap gap-3">
+  <Link
+    href="/perfil"
+    className="rounded-full bg-white px-5 py-2 humus-font-brand text-2xl text-[#6b3f22] shadow-lg hover:scale-105 transition"
+  >
+    Volver al perfil
+  </Link>
+
+  <Link
+    href="/admin/dashboard"
+    className="rounded-full bg-[#fff3c4] px-5 py-2 humus-font-brand text-2xl text-[#8a5a00] shadow-lg hover:scale-105 transition"
+  >
+    Dashboard
+  </Link>
+</div>
 
           <img
             src="/icons/logohumusai.png"

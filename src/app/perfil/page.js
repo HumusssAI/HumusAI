@@ -397,6 +397,7 @@ export default function PerfilPage() {
 
                 {isAdminUser(currentUser) && (
   <>
+
     <Link
       href="/admin"
       className="rounded-2xl bg-[#fff3c4] px-4 py-4 text-center text-xl font-bold text-[#8a5a00] shadow-md hover:scale-105 transition"
@@ -410,6 +411,12 @@ export default function PerfilPage() {
     >
       Administrar artículos científicos
     </Link>
+    <Link
+  href="/admin/dashboard"
+  className="rounded-2xl bg-[#fff3c4] px-4 py-4 text-center text-xl font-bold text-[#8a5a00] shadow-md hover:scale-105 transition"
+>
+  Dashboard admin
+</Link>
   </>
 )}
               </div>
