@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getCurrentUser, getPublicUsername, isAdminUser } from "../authUtils";
 
 const INITIAL_POSTS = [];
+const COMMUNITY_POSTS_STORAGE_KEY = "humusai-community-posts";
+const MAX_COMMENT_IMAGES = 3;
 
 function safeParseJSON(value, fallback) {
   try {
@@ -28,37 +30,79 @@ function formatDate(dateTime) {
   });
 }
 
+function isImageFile(file) {
+  if (!file) return false;
+
+  const hasImageMime = file.type && file.type.startsWith("image/");
+  const hasImageExtension = /\.(png|jpg|jpeg|gif|webp|bmp|svg|avif)$/i.test(
+    file.name || ""
+  );
+
+  return Boolean(hasImageMime || hasImageExtension);
+}
+
+function getRemovedImagePlaceholder(id, name = "Imagen removida") {
+  return {
+    id,
+    src: "",
+    name,
+    removedByModerator: true,
+  };
+}
+
+function getImageSrc(imageItem) {
+  if (typeof imageItem === "string") return imageItem;
+
+  return (
+    imageItem?.src ||
+    imageItem?.image ||
+    imageItem?.url ||
+    imageItem?.dataUrl ||
+    ""
+  );
+}
+
 function getPostImages(post) {
   const normalizedImages = [];
 
   if (Array.isArray(post.images)) {
     post.images.forEach((imageItem, index) => {
+      const generatedId = `${post.id}-image-${index}`;
+
       if (typeof imageItem === "string") {
         normalizedImages.push({
-          id: `${post.id}-image-${index}`,
+          id: generatedId,
           src: imageItem,
           name: `Imagen ${index + 1}`,
+          removedByModerator: false,
         });
 
         return;
       }
 
-      const imageSrc =
-        imageItem?.src ||
-        imageItem?.image ||
-        imageItem?.url ||
-        imageItem?.dataUrl ||
-        "";
+      if (imageItem?.removedByModerator) {
+        normalizedImages.push({
+          id: imageItem.id || generatedId,
+          src: "",
+          name: imageItem.name || `Imagen ${index + 1}`,
+          removedByModerator: true,
+        });
+
+        return;
+      }
+
+      const imageSrc = getImageSrc(imageItem);
 
       if (imageSrc) {
         normalizedImages.push({
-          id: imageItem.id || `${post.id}-image-${index}`,
+          id: imageItem.id || generatedId,
           src: imageSrc,
           name:
             imageItem.name ||
             imageItem.imageName ||
             imageItem.filename ||
             `Imagen ${index + 1}`,
+          removedByModerator: false,
         });
       }
     });
@@ -68,17 +112,84 @@ function getPostImages(post) {
     return normalizedImages;
   }
 
+  if (post.imageRemovedByModerator) {
+    return [
+      {
+        id: `${post.id}-legacy-image`,
+        src: "",
+        name: "Imagen de la charla",
+        removedByModerator: true,
+      },
+    ];
+  }
+
   if (post.image) {
     return [
       {
         id: `${post.id}-legacy-image`,
         src: post.image,
         name: post.imageName || "Imagen de la charla",
+        removedByModerator: false,
       },
     ];
   }
 
   return [];
+}
+
+function getCommentImages(comment) {
+  const normalizedImages = [];
+
+  if (Array.isArray(comment.images)) {
+    comment.images.forEach((imageItem, index) => {
+      const generatedId = `${comment.id}-comment-image-${index}`;
+
+      if (typeof imageItem === "string") {
+        normalizedImages.push({
+          id: generatedId,
+          src: imageItem,
+          name: `Imagen ${index + 1}`,
+          removedByModerator: false,
+        });
+
+        return;
+      }
+
+      if (imageItem?.removedByModerator) {
+        normalizedImages.push({
+          id: imageItem.id || generatedId,
+          src: "",
+          name: imageItem.name || `Imagen ${index + 1}`,
+          removedByModerator: true,
+        });
+
+        return;
+      }
+
+      const imageSrc = getImageSrc(imageItem);
+
+      if (imageSrc) {
+        normalizedImages.push({
+          id: imageItem.id || generatedId,
+          src: imageSrc,
+          name:
+            imageItem.name ||
+            imageItem.imageName ||
+            imageItem.filename ||
+            `Imagen ${index + 1}`,
+          removedByModerator: false,
+        });
+      }
+    });
+  }
+
+  return normalizedImages;
+}
+
+function getActiveImageCount(images) {
+  return images.filter(
+    (imageItem) => !imageItem.removedByModerator && imageItem.src
+  ).length;
 }
 
 function getPostAuthor(post) {
@@ -87,12 +198,43 @@ function getPostAuthor(post) {
   return "@usuario";
 }
 
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve({
+        id: `comment-image-${Date.now()}-${Math.random()
+          .toString(16)
+          .slice(2)}`,
+        src: reader.result,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        uploadedAt: new Date().toISOString(),
+        removedByModerator: false,
+      });
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ComunidadPage() {
+  const commentImageInputRef = useRef(null);
+  const editCommentImageInputRef = useRef(null);
+
   const [currentUser, setCurrentUser] = useState(null);
   const [posts, setPosts] = useState(INITIAL_POSTS);
   const [searchText, setSearchText] = useState("");
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [commentText, setCommentText] = useState("");
+  const [commentImages, setCommentImages] = useState([]);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [editingImagesCommentId, setEditingImagesCommentId] = useState(null);
+  const [editingCommentImages, setEditingCommentImages] = useState([]);
   const [menuOpenPostId, setMenuOpenPostId] = useState(null);
   const [imageViewer, setImageViewer] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -102,7 +244,7 @@ export default function ComunidadPage() {
     setCurrentUser(savedUser);
 
     const savedPosts = safeParseJSON(
-      localStorage.getItem("humusai-community-posts"),
+      localStorage.getItem(COMMUNITY_POSTS_STORAGE_KEY),
       INITIAL_POSTS
     );
 
@@ -113,7 +255,7 @@ export default function ComunidadPage() {
   useEffect(() => {
     if (!dataLoaded) return;
 
-    localStorage.setItem("humusai-community-posts", JSON.stringify(posts));
+    localStorage.setItem(COMMUNITY_POSTS_STORAGE_KEY, JSON.stringify(posts));
   }, [posts, dataLoaded]);
 
   const filteredPosts = useMemo(() => {
@@ -161,48 +303,34 @@ export default function ComunidadPage() {
     return Boolean(isOwnerById || isOwnerByEmail);
   }
 
-  function deleteComment(postId, commentId) {
-    const post = posts.find((postItem) => postItem.id === postId);
+  function canEditComment(comment) {
+    if (!currentUser || !comment) return false;
 
-    const comment = post?.comments?.find(
-      (commentItem) => commentItem.id === commentId
-    );
+    const isOwnerById = comment.userId && comment.userId === currentUser.id;
+    const isOwnerByEmail =
+      comment.userEmail && comment.userEmail === currentUser.email;
 
-    if (!canManageComment(comment)) {
-      alert(
-        "Solo podés eliminar tus propios comentarios. El administrador puede moderar todos."
-      );
-      return;
-    }
+    return Boolean(isOwnerById || isOwnerByEmail);
+  }
 
-    const confirmed = confirm("¿Querés eliminar este comentario?");
-
-    if (!confirmed) return;
-
-    setPosts((prevPosts) =>
-      prevPosts.map((postItem) =>
-        postItem.id === postId
-          ? {
-              ...postItem,
-              comments: (postItem.comments || []).filter(
-                (commentItem) => commentItem.id !== commentId
-              ),
-            }
-          : postItem
-      )
-    );
+  function canModerateImages() {
+    return isAdminUser(currentUser);
   }
 
   function openImageViewer(image, imageName) {
     setImageViewer({
       image,
-      imageName: imageName || "Imagen de la charla",
+      imageName: imageName || "Imagen",
     });
   }
 
   function openPost(postId) {
     setSelectedPostId(postId);
     setMenuOpenPostId(null);
+    setEditingCommentId(null);
+    setEditingCommentText("");
+    setEditingImagesCommentId(null);
+    setEditingCommentImages([]);
   }
 
   function toggleVote(postId, voteType) {
@@ -252,6 +380,58 @@ export default function ComunidadPage() {
     );
   }
 
+  function openCommentImagePicker() {
+    if (commentImages.length >= MAX_COMMENT_IMAGES) {
+      alert(`Podés adjuntar hasta ${MAX_COMMENT_IMAGES} imágenes por comentario.`);
+      return;
+    }
+
+    commentImageInputRef.current?.click();
+  }
+
+  async function handleCommentImagesChange(event) {
+    const files = Array.from(event.target.files || []);
+    const imageFiles = files.filter(isImageFile);
+
+    if (files.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    if (imageFiles.length === 0) {
+      alert("Seleccioná un archivo de imagen válido.");
+      event.target.value = "";
+      return;
+    }
+
+    const availableSlots = MAX_COMMENT_IMAGES - commentImages.length;
+
+    if (availableSlots <= 0) {
+      alert(`Podés adjuntar hasta ${MAX_COMMENT_IMAGES} imágenes por comentario.`);
+      event.target.value = "";
+      return;
+    }
+
+    const filesToRead = imageFiles.slice(0, availableSlots);
+
+    if (imageFiles.length > availableSlots) {
+      alert(
+        `Solo se agregaron ${availableSlots} imagen/es. El máximo es ${MAX_COMMENT_IMAGES}.`
+      );
+    }
+
+    const loadedImages = await Promise.all(filesToRead.map(readImageFile));
+
+    setCommentImages((prevImages) => [...prevImages, ...loadedImages]);
+    event.target.value = "";
+  }
+
+  function removePendingCommentImage(imageId) {
+    setCommentImages((prevImages) =>
+      prevImages.filter((imageItem) => imageItem.id !== imageId)
+    );
+  }
+
   function addComment() {
     if (!selectedPostId) return;
 
@@ -260,8 +440,8 @@ export default function ComunidadPage() {
       return;
     }
 
-    if (!commentText.trim()) {
-      alert("Escribí un comentario.");
+    if (!commentText.trim() && commentImages.length === 0) {
+      alert("Escribí un comentario o adjuntá una imagen.");
       return;
     }
 
@@ -272,7 +452,9 @@ export default function ComunidadPage() {
       author: getPublicUsername(currentUser),
       displayName: currentUser.name,
       text: commentText.trim(),
+      images: commentImages,
       createdAt: new Date().toISOString(),
+      updatedAt: "",
     };
 
     setPosts((prevPosts) =>
@@ -287,6 +469,347 @@ export default function ComunidadPage() {
     );
 
     setCommentText("");
+    setCommentImages([]);
+  }
+
+  function startEditComment(comment) {
+    if (!canEditComment(comment)) {
+      alert("Solo podés editar tus propios comentarios.");
+      return;
+    }
+
+    setEditingImagesCommentId(null);
+    setEditingCommentImages([]);
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.text || "");
+  }
+
+  function cancelEditComment() {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  }
+
+  function saveEditedComment(postId, commentId) {
+    const post = posts.find((postItem) => postItem.id === postId);
+
+    const comment = post?.comments?.find(
+      (commentItem) => commentItem.id === commentId
+    );
+
+    if (!canEditComment(comment)) {
+      alert("Solo podés editar tus propios comentarios.");
+      return;
+    }
+
+    if (!editingCommentText.trim()) {
+      alert("El comentario no puede quedar vacío.");
+      return;
+    }
+
+    setPosts((prevPosts) =>
+      prevPosts.map((postItem) =>
+        postItem.id === postId
+          ? {
+              ...postItem,
+              comments: (postItem.comments || []).map((commentItem) =>
+                commentItem.id === commentId
+                  ? {
+                      ...commentItem,
+                      text: editingCommentText.trim(),
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : commentItem
+              ),
+            }
+          : postItem
+      )
+    );
+
+    cancelEditComment();
+  }
+
+  function startEditCommentImages(comment) {
+    if (!canEditComment(comment)) {
+      alert("Solo podés editar imágenes de tus propios comentarios.");
+      return;
+    }
+
+    setEditingCommentId(null);
+    setEditingCommentText("");
+    setEditingImagesCommentId(comment.id);
+    setEditingCommentImages(getCommentImages(comment));
+  }
+
+  function cancelEditCommentImages() {
+    setEditingImagesCommentId(null);
+    setEditingCommentImages([]);
+  }
+
+  function openEditCommentImagePicker() {
+    const activeImageCount = getActiveImageCount(editingCommentImages);
+
+    if (activeImageCount >= MAX_COMMENT_IMAGES) {
+      alert(`Podés tener hasta ${MAX_COMMENT_IMAGES} imágenes por comentario.`);
+      return;
+    }
+
+    editCommentImageInputRef.current?.click();
+  }
+
+  async function handleEditCommentImagesChange(event) {
+    const files = Array.from(event.target.files || []);
+    const imageFiles = files.filter(isImageFile);
+
+    if (files.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    if (imageFiles.length === 0) {
+      alert("Seleccioná un archivo de imagen válido.");
+      event.target.value = "";
+      return;
+    }
+
+    const activeImageCount = getActiveImageCount(editingCommentImages);
+    const availableSlots = MAX_COMMENT_IMAGES - activeImageCount;
+
+    if (availableSlots <= 0) {
+      alert(`Podés tener hasta ${MAX_COMMENT_IMAGES} imágenes por comentario.`);
+      event.target.value = "";
+      return;
+    }
+
+    const filesToRead = imageFiles.slice(0, availableSlots);
+
+    if (imageFiles.length > availableSlots) {
+      alert(
+        `Solo se agregaron ${availableSlots} imagen/es. El máximo es ${MAX_COMMENT_IMAGES}.`
+      );
+    }
+
+    const loadedImages = await Promise.all(filesToRead.map(readImageFile));
+
+    setEditingCommentImages((prevImages) => [
+      ...prevImages,
+      ...loadedImages,
+    ]);
+
+    event.target.value = "";
+  }
+
+  function removeEditingCommentImage(imageId) {
+    setEditingCommentImages((prevImages) =>
+      prevImages.filter((imageItem) => {
+        if (imageItem.removedByModerator) return true;
+
+        return imageItem.id !== imageId;
+      })
+    );
+  }
+
+  function saveEditedCommentImages(postId, commentId) {
+    const post = posts.find((postItem) => postItem.id === postId);
+
+    const comment = post?.comments?.find(
+      (commentItem) => commentItem.id === commentId
+    );
+
+    if (!canEditComment(comment)) {
+      alert("Solo podés editar imágenes de tus propios comentarios.");
+      return;
+    }
+
+    const activeImageCount = getActiveImageCount(editingCommentImages);
+    const commentTextValue = comment?.text?.trim() || "";
+
+    if (!commentTextValue && activeImageCount === 0) {
+      alert(
+        "El comentario no puede quedar vacío. Agregá texto o al menos una imagen."
+      );
+      return;
+    }
+
+    setPosts((prevPosts) =>
+      prevPosts.map((postItem) =>
+        postItem.id === postId
+          ? {
+              ...postItem,
+              comments: (postItem.comments || []).map((commentItem) =>
+                commentItem.id === commentId
+                  ? {
+                      ...commentItem,
+                      images: editingCommentImages,
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : commentItem
+              ),
+            }
+          : postItem
+      )
+    );
+
+    cancelEditCommentImages();
+  }
+
+  function deleteComment(postId, commentId) {
+    const post = posts.find((postItem) => postItem.id === postId);
+
+    const comment = post?.comments?.find(
+      (commentItem) => commentItem.id === commentId
+    );
+
+    if (!canManageComment(comment)) {
+      alert(
+        "Solo podés eliminar tus propios comentarios. El administrador puede moderar todos."
+      );
+      return;
+    }
+
+    const confirmed = confirm("¿Querés eliminar este comentario?");
+
+    if (!confirmed) return;
+
+    setPosts((prevPosts) =>
+      prevPosts.map((postItem) =>
+        postItem.id === postId
+          ? {
+              ...postItem,
+              comments: (postItem.comments || []).filter(
+                (commentItem) => commentItem.id !== commentId
+              ),
+            }
+          : postItem
+      )
+    );
+
+    if (editingCommentId === commentId) {
+      cancelEditComment();
+    }
+
+    if (editingImagesCommentId === commentId) {
+      cancelEditCommentImages();
+    }
+  }
+
+  function markImageAsRemoved(imageItem, fallbackId) {
+    return {
+      ...imageItem,
+      id: imageItem?.id || fallbackId,
+      src: "",
+      image: "",
+      url: "",
+      dataUrl: "",
+      removedByModerator: true,
+      removedAt: new Date().toISOString(),
+      removedBy: currentUser?.id || "admin",
+    };
+  }
+
+  function deletePostImage(postId, imageId) {
+    if (!canModerateImages()) {
+      alert("Solo el administrador puede eliminar imágenes.");
+      return;
+    }
+
+    const confirmed = confirm(
+      "¿Querés eliminar esta imagen de la charla? El texto de la charla se conservará."
+    );
+
+    if (!confirmed) return;
+
+    setPosts((prevPosts) =>
+      prevPosts.map((post) => {
+        if (post.id !== postId) return post;
+
+        if (imageId === `${post.id}-legacy-image`) {
+          return {
+            ...post,
+            image: "",
+            imageName: "",
+            imageRemovedByModerator: true,
+          };
+        }
+
+        const updatedImages = Array.isArray(post.images)
+          ? post.images.map((imageItem, index) => {
+              const generatedId = `${post.id}-image-${index}`;
+
+              if (typeof imageItem === "string") {
+                if (generatedId !== imageId) return imageItem;
+
+                return getRemovedImagePlaceholder(
+                  generatedId,
+                  `Imagen ${index + 1}`
+                );
+              }
+
+              const itemId = imageItem?.id || generatedId;
+
+              if (itemId !== imageId) return imageItem;
+
+              return markImageAsRemoved(imageItem, generatedId);
+            })
+          : post.images;
+
+        return {
+          ...post,
+          images: updatedImages,
+        };
+      })
+    );
+  }
+
+  function deleteCommentImage(postId, commentId, imageId) {
+    if (!canModerateImages()) {
+      alert("Solo el administrador puede eliminar imágenes.");
+      return;
+    }
+
+    const confirmed = confirm(
+      "¿Querés eliminar esta imagen del comentario? El texto del comentario se conservará."
+    );
+
+    if (!confirmed) return;
+
+    setPosts((prevPosts) =>
+      prevPosts.map((post) => {
+        if (post.id !== postId) return post;
+
+        return {
+          ...post,
+          comments: (post.comments || []).map((comment) => {
+            if (comment.id !== commentId) return comment;
+
+            const updatedImages = Array.isArray(comment.images)
+              ? comment.images.map((imageItem, index) => {
+                  const generatedId = `${comment.id}-comment-image-${index}`;
+
+                  if (typeof imageItem === "string") {
+                    if (generatedId !== imageId) return imageItem;
+
+                    return getRemovedImagePlaceholder(
+                      generatedId,
+                      `Imagen ${index + 1}`
+                    );
+                  }
+
+                  const itemId = imageItem?.id || generatedId;
+
+                  if (itemId !== imageId) return imageItem;
+
+                  return markImageAsRemoved(imageItem, generatedId);
+                })
+              : comment.images;
+
+            return {
+              ...comment,
+              images: updatedImages,
+            };
+          }),
+        };
+      })
+    );
   }
 
   function toggleSave(postId) {
@@ -433,24 +956,47 @@ export default function ComunidadPage() {
                           {getPostImages(post).length > 0 && (
                             <div className="mt-4 flex flex-wrap gap-3">
                               {getPostImages(post).map((imageItem) => (
-                                <button
+                                <div
                                   key={imageItem.id}
-                                  type="button"
-                                  onClick={() =>
-                                    openImageViewer(
-                                      imageItem.src,
-                                      imageItem.name
-                                    )
-                                  }
-                                  className="block h-48 w-48 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
-                                  title="Ver imagen"
+                                  className="relative h-48 w-48 overflow-hidden rounded-3xl bg-black/20 shadow-lg"
                                 >
-                                  <img
-                                    src={imageItem.src}
-                                    alt={imageItem.name || post.title}
-                                    className="h-full w-full object-cover"
-                                  />
-                                </button>
+                                  {imageItem.removedByModerator ? (
+                                    <div className="flex h-full w-full items-center justify-center bg-[#4a4a4d] px-3 text-center text-sm font-bold text-white">
+                                      Imagen removida por moderación
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openImageViewer(
+                                          imageItem.src,
+                                          imageItem.name
+                                        )
+                                      }
+                                      className="block h-full w-full hover:scale-105 transition"
+                                      title="Ver imagen"
+                                    >
+                                      <img
+                                        src={imageItem.src}
+                                        alt={imageItem.name || post.title}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </button>
+                                  )}
+
+                                  {canModerateImages() &&
+                                    !imageItem.removedByModerator && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          deletePostImage(post.id, imageItem.id)
+                                        }
+                                        className="absolute right-2 top-2 rounded-full bg-[#b33a3a] px-3 py-1 text-xs font-bold text-white shadow-md hover:scale-105 transition"
+                                      >
+                                        Eliminar imagen
+                                      </button>
+                                    )}
+                                </div>
                               ))}
                             </div>
                           )}
@@ -559,7 +1105,13 @@ export default function ComunidadPage() {
       </div>
 
       {selectedPost && (
-        <Modal onClose={() => setSelectedPostId(null)}>
+        <Modal
+          onClose={() => {
+            setSelectedPostId(null);
+            cancelEditComment();
+            cancelEditCommentImages();
+          }}
+        >
           <div className="rounded-4xl bg-[#f4ede5] p-6 text-[#6b3f22] max-h-[85vh] overflow-y-auto">
             <h2 className="text-xl font-bold">
               {getPostAuthor(selectedPost)}
@@ -576,21 +1128,43 @@ export default function ComunidadPage() {
             {getPostImages(selectedPost).length > 0 && (
               <div className="mt-4 flex flex-wrap gap-3">
                 {getPostImages(selectedPost).map((imageItem) => (
-                  <button
+                  <div
                     key={imageItem.id}
-                    type="button"
-                    onClick={() =>
-                      openImageViewer(imageItem.src, imageItem.name)
-                    }
-                    className="block h-52 w-52 overflow-hidden rounded-3xl bg-black/20 shadow-lg hover:scale-105 transition"
-                    title="Ver imagen"
+                    className="relative h-52 w-52 overflow-hidden rounded-3xl bg-black/20 shadow-lg"
                   >
-                    <img
-                      src={imageItem.src}
-                      alt={imageItem.name || selectedPost.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
+                    {imageItem.removedByModerator ? (
+                      <div className="flex h-full w-full items-center justify-center bg-[#4a4a4d] px-3 text-center text-sm font-bold text-white">
+                        Imagen removida por moderación
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openImageViewer(imageItem.src, imageItem.name)
+                        }
+                        className="block h-full w-full hover:scale-105 transition"
+                        title="Ver imagen"
+                      >
+                        <img
+                          src={imageItem.src}
+                          alt={imageItem.name || selectedPost.title}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    )}
+
+                    {canModerateImages() && !imageItem.removedByModerator && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          deletePostImage(selectedPost.id, imageItem.id)
+                        }
+                        className="absolute right-2 top-2 rounded-full bg-[#b33a3a] px-3 py-1 text-xs font-bold text-white shadow-md hover:scale-105 transition"
+                      >
+                        Eliminar imagen
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -617,25 +1191,245 @@ export default function ComunidadPage() {
 
                           <p className="text-sm text-[#7a6351]">
                             {formatDate(comment.createdAt)}
+                            {comment.updatedAt && (
+                              <span className="ml-2 font-bold text-[#5b9b55]">
+                                editado
+                              </span>
+                            )}
                           </p>
                         </div>
 
-                        {canManageComment(comment) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteComment(selectedPost.id, comment.id)
-                            }
-                            className="rounded-full bg-[#f3d6d6] px-3 py-1 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
-                          >
-                            Eliminar
-                          </button>
-                        )}
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {canEditComment(comment) &&
+                            editingCommentId !== comment.id &&
+                            editingImagesCommentId !== comment.id && (
+                              <button
+                                type="button"
+                                onClick={() => startEditComment(comment)}
+                                className="rounded-full bg-[#e5f4df] px-3 py-1 text-sm font-bold text-[#3a7a36] shadow-sm hover:scale-105 transition"
+                              >
+                                Editar
+                              </button>
+                            )}
+
+                          {canEditComment(comment) &&
+                            editingImagesCommentId !== comment.id &&
+                            editingCommentId !== comment.id && (
+                              <button
+                                type="button"
+                                onClick={() => startEditCommentImages(comment)}
+                                className="rounded-full bg-[#eef0ff] px-3 py-1 text-sm font-bold text-[#3b438f] shadow-sm hover:scale-105 transition"
+                              >
+                                Editar imágenes
+                              </button>
+                            )}
+
+                          {canManageComment(comment) &&
+                            editingCommentId !== comment.id &&
+                            editingImagesCommentId !== comment.id && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteComment(selectedPost.id, comment.id)
+                                }
+                                className="rounded-full bg-[#f3d6d6] px-3 py-1 text-sm font-bold text-[#7a2e2e] shadow-sm hover:scale-105 transition"
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                        </div>
                       </div>
 
-                      <p className="mt-2 text-lg text-[#4a3425]">
-                        {comment.text}
-                      </p>
+                      {editingCommentId === comment.id ? (
+                        <div className="mt-3">
+                          <textarea
+                            value={editingCommentText}
+                            onChange={(event) =>
+                              setEditingCommentText(event.target.value)
+                            }
+                            rows={3}
+                            className="w-full rounded-2xl border-2 border-[#d7c4b5] bg-white px-4 py-3 text-lg outline-none resize-none"
+                          />
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                saveEditedComment(selectedPost.id, comment.id)
+                              }
+                              className="rounded-full bg-[#5b9b55] px-4 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+                            >
+                              Guardar edición
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={cancelEditComment}
+                              className="rounded-full bg-[#777777] px-4 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-lg text-[#4a3425]">
+                          {comment.text}
+                        </p>
+                      )}
+
+                      {editingImagesCommentId === comment.id ? (
+                        <div className="mt-4 rounded-3xl bg-[#f7efe6] px-4 py-4 shadow-inner">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-lg font-bold text-[#6b3f22]">
+                                Editar imágenes del comentario
+                              </p>
+
+                              <p className="text-sm text-[#7a6351]">
+                                Podés tener hasta {MAX_COMMENT_IMAGES} imágenes.
+                                Las imágenes removidas por moderación no se
+                                pueden borrar desde tu cuenta.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={openEditCommentImagePicker}
+                              className="rounded-full bg-[#5b9b55] px-4 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+                            >
+                              + Agregar imagen
+                            </button>
+
+                            <input
+                              ref={editCommentImageInputRef}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleEditCommentImagesChange}
+                              className="hidden"
+                            />
+                          </div>
+
+                          {editingCommentImages.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-3">
+                              {editingCommentImages.map((imageItem) => (
+                                <div
+                                  key={imageItem.id}
+                                  className="relative h-32 w-32 overflow-hidden rounded-2xl bg-black/20 shadow-md"
+                                >
+                                  {imageItem.removedByModerator ? (
+                                    <div className="flex h-full w-full items-center justify-center bg-[#4a4a4d] px-2 text-center text-xs font-bold text-white">
+                                      Imagen removida por moderación
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <img
+                                        src={imageItem.src}
+                                        alt={imageItem.name}
+                                        className="h-full w-full object-cover"
+                                      />
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeEditingCommentImage(
+                                            imageItem.id
+                                          )
+                                        }
+                                        className="absolute right-1 top-1 rounded-full bg-[#b33a3a] px-2 py-1 text-xs font-bold text-white shadow-md"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-sm text-[#7a6351]">
+                              Este comentario no tiene imágenes.
+                            </p>
+                          )}
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                saveEditedCommentImages(
+                                  selectedPost.id,
+                                  comment.id
+                                )
+                              }
+                              className="rounded-full bg-[#5b9b55] px-4 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+                            >
+                              Guardar imágenes
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={cancelEditCommentImages}
+                              className="rounded-full bg-[#777777] px-4 py-2 text-sm font-bold text-white shadow-sm hover:scale-105 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        getCommentImages(comment).length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {getCommentImages(comment).map((imageItem) => (
+                              <div
+                                key={imageItem.id}
+                                className="relative h-40 w-40 overflow-hidden rounded-3xl bg-black/20 shadow-md"
+                              >
+                                {imageItem.removedByModerator ? (
+                                  <div className="flex h-full w-full items-center justify-center bg-[#4a4a4d] px-3 text-center text-xs font-bold text-white">
+                                    Imagen removida por moderación
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openImageViewer(
+                                        imageItem.src,
+                                        imageItem.name
+                                      )
+                                    }
+                                    className="block h-full w-full hover:scale-105 transition"
+                                    title="Ver imagen"
+                                  >
+                                    <img
+                                      src={imageItem.src}
+                                      alt={
+                                        imageItem.name ||
+                                        "Imagen de comentario"
+                                      }
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </button>
+                                )}
+
+                                {canModerateImages() &&
+                                  !imageItem.removedByModerator && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        deleteCommentImage(
+                                          selectedPost.id,
+                                          comment.id,
+                                          imageItem.id
+                                        )
+                                      }
+                                      className="absolute right-2 top-2 rounded-full bg-[#b33a3a] px-2 py-1 text-xs font-bold text-white shadow-md hover:scale-105 transition"
+                                    >
+                                      Eliminar
+                                    </button>
+                                  )}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
                     </div>
                   ))
                 ) : (
@@ -645,13 +1439,65 @@ export default function ComunidadPage() {
             </div>
 
             <div className="mt-5">
-              <textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                rows={4}
-                className="w-full rounded-2xl border-2 border-[#d7c4b5] bg-white px-4 py-3 text-lg outline-none resize-none"
-                placeholder="Escribí un comentario..."
-              />
+              <div className="relative rounded-2xl border-2 border-[#d7c4b5] bg-white px-4 py-3 shadow-sm">
+                <textarea
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  rows={4}
+                  className="w-full resize-none bg-transparent pr-14 pb-8 text-lg outline-none"
+                  placeholder="Escribí un comentario..."
+                />
+
+                <input
+                  ref={commentImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleCommentImagesChange}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={openCommentImagePicker}
+                  className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#f3ebe3] text-2xl text-[#6b3f22] shadow-md hover:scale-105 transition"
+                  title="Adjuntar imagen"
+                  aria-label="Adjuntar imagen al comentario"
+                >
+                  📎
+                </button>
+
+                {commentImages.length > 0 && (
+                  <div className="absolute bottom-2 right-2 flex h-5 w-5 translate-x-1 -translate-y-8 items-center justify-center rounded-full bg-[#5b9b55] text-xs font-bold text-white">
+                    {commentImages.length}
+                  </div>
+                )}
+              </div>
+
+              {commentImages.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {commentImages.map((imageItem) => (
+                    <div
+                      key={imageItem.id}
+                      className="relative h-28 w-28 overflow-hidden rounded-2xl bg-black/20 shadow-md"
+                    >
+                      <img
+                        src={imageItem.src}
+                        alt={imageItem.name}
+                        className="h-full w-full object-cover"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removePendingCommentImage(imageItem.id)}
+                        className="absolute right-1 top-1 rounded-full bg-[#b33a3a] px-2 py-1 text-xs font-bold text-white shadow-md"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <button
                 onClick={addComment}
