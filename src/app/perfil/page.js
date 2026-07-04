@@ -396,13 +396,22 @@ export default function PerfilPage() {
                 </Link>
 
                 {isAdminUser(currentUser) && (
-                  <Link
-                    href="/comunidad/articulos"
-                    className="md:col-span-2 rounded-2xl bg-[#fff3c4] px-4 py-4 text-center text-xl font-bold text-[#8a5a00] shadow-md hover:scale-105 transition"
-                  >
-                    Administrar artículos científicos
-                  </Link>
-                )}
+  <>
+    <Link
+      href="/admin"
+      className="rounded-2xl bg-[#fff3c4] px-4 py-4 text-center text-xl font-bold text-[#8a5a00] shadow-md hover:scale-105 transition"
+    >
+      Panel de usuarios
+    </Link>
+
+    <Link
+      href="/comunidad/articulos"
+      className="rounded-2xl bg-[#fff3c4] px-4 py-4 text-center text-xl font-bold text-[#8a5a00] shadow-md hover:scale-105 transition"
+    >
+      Administrar artículos científicos
+    </Link>
+  </>
+)}
               </div>
             </div>
           ) : (
